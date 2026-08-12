@@ -1,0 +1,23 @@
+{
+	"name": "site-icon-fallback",
+	"private": true,
+	"description": "Answers the root icon paths that Safari, Applebot and link unfurlers probe for, using the Site Icon already set in Settings",
+	"scripts": {
+		"env:cli": "npx @wordpress/env run cli",
+		"env:db": "npx @wordpress/env run cli -- mysql -uroot -ppassword wordpress --host=mysql",
+		"env:destroy": "npx @wordpress/env destroy",
+		"env:logs": "npx @wordpress/env logs development | grep -v -E '\"(GET|OPTIONS|HEAD|POST|PUT)'",
+		"env:start": "npx @wordpress/env start",
+		"env:stop": "npx @wordpress/env stop",
+		"format": "wp-scripts format",
+		"lint:php": "composer phpcs",
+		"test": "npm run test:php && npm run test:sh",
+		"test:php": "php tests/test-routing.php",
+		"test:sh": "bash tests/test-nginx-installer.sh"
+	},
+	"author": "Human Made Limited",
+	"license": "GPL-2.0-or-later",
+	"devDependencies": {
+		"@wordpress/scripts": "^28.6.0"
+	}
+}

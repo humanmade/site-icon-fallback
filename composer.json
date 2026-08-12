@@ -1,0 +1,27 @@
+{
+	"name": "humanmade/site-icon-fallback",
+	"description": "Answers the root icon paths that Safari, Applebot and link unfurlers probe for, using the Site Icon already set in Settings.",
+	"type": "wordpress-plugin",
+	"license": "GPL-2.0-or-later",
+	"authors": [
+		{
+			"name": "Human Made",
+			"homepage": "https://humanmade.com"
+		}
+	],
+	"require": {
+		"php": ">=8.0"
+	},
+	"require-dev": {
+		"humanmade/coding-standards": "^2.0"
+	},
+	"scripts": {
+		"phpcs": "phpcs",
+		"phpcbf": "phpcbf"
+	},
+	"config": {
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		}
+	}
+}

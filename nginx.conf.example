@@ -1,0 +1,9 @@
+# nginx answers root *.png and favicon.ico itself on some configurations, so these
+# paths never reach PHP. Hand them to WordPress, which serves them from the Site Icon.
+location ~ ^/apple-touch-icon(-precomposed)?(-\d+x\d+)?\.png$ {
+    try_files $uri /index.php?$args;
+}
+
+location ~ ^/favicon\.(ico|png)$ {
+    try_files $uri /index.php?$args;
+}
