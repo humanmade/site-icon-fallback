@@ -28,6 +28,18 @@ This plugin supports nginx and will not activate on another server.
 
 Where they don't reach WordPress — some tuned nginx configurations answer static paths themselves — **Tools > Site Health** tests it directly and prints the exact configuration snippet you need.
 
+== Installation ==
+
+1. Put the plugin in `wp-content/plugins/site-icon-fallback`.
+2. Run `./bin/install-nginx-config.sh` from the plugin directory to install the nginx rules. Skip this if your nginx configuration already routes unknown paths to `index.php`, which most do.
+3. Activate the plugin, either in wp-admin or with `wp plugin activate site-icon-fallback`.
+4. Reload nginx so it picks up the new rules. Locally that usually means restarting the container or the server.
+5. Check it worked. Run `wp site-icon-fallback status`, or open **Tools > Site Health** and look for *Root icon requests reach WordPress*. If requests are not reaching PHP, Site Health prints the rules to add.
+
+Set a Site Icon in **Settings > General** if you haven't already. Without one the root paths return a 404 and an admin notice says so.
+
+The plugin writes no files and no options. Activating and deactivating changes nothing on disk or in your database.
+
 == Installing the nginx rules ==
 
 On nginx, the rules in `nginx.conf.example` need to be in your server configuration. On Altis, `bin/install-nginx-config.sh` will put them there for you:
