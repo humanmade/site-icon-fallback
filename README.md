@@ -16,14 +16,38 @@ Sizes answered: 57, 60, 72, 76, 114, 120, 144, 152, 167, 180, 192. Anything else
 
 ## Requirements
 
-- WordPress 6.0 or later, PHP 8.0 or later.
+- WordPress 6.7 or later, PHP 8.2 or later.
 - A Site Icon set in **Settings → General**. Without one, the root paths return 404 and an admin notice says so.
 - **nginx.** The plugin refuses to activate on a server it cannot identify as nginx.
 - Requests for the root paths must reach PHP. A standard nginx `try_files` configuration already does this.
 
-## Install
+## How to use
 
-Put the plugin in `wp-content/plugins/site-icon-fallback` and activate it. It writes no files and no options — activating and deactivating changes nothing on disk or in your database.
+1. **Install the plugin.** Put it in `wp-content/plugins/site-icon-fallback`.
+2. **Install the nginx rules.** Run `./bin/install-nginx-config.sh` from the plugin directory. Skip this if your nginx configuration already routes unknown paths to `index.php`, which most do.
+3. **Activate the plugin** in wp-admin, or with `wp plugin activate site-icon-fallback`.
+4. **Reload nginx**, so it picks up the new rules. Locally that usually means restarting the container or the server.
+5. **Check it worked.** Run `wp site-icon-fallback status`, or open **Tools → Site Health** and look for *Root icon requests reach WordPress*. If the requests are not reaching PHP, Site Health prints the rules to add.
+
+The plugin writes no files and no options. Activating and deactivating changes nothing on disk or in your database.
+
+## nginx
+
+Some tuned nginx configurations answer static paths themselves, so the requests never reach PHP. The rules in `nginx.conf.example` fix that. On Altis, `bin/install-nginx-config.sh` installs them for you:
+
+```sh
+./bin/install-nginx-config.sh                 # install into .config/nginx-additions.conf
+./bin/install-nginx-config.sh --target PATH   # install into a specific file
+./bin/install-nginx-config.sh --base blog     # subdirectory install
+./bin/install-nginx-config.sh --dry-run       # show the result, write nothing
+./bin/install-nginx-config.sh --remove        # take the block back out
+```
+
+The block is fenced between `# BEGIN Site Icon Fallback` and `# END Site Icon Fallback`. Re-running replaces it rather than appending a second copy — nginx rejects duplicate `location` directives. Reload nginx afterwards.
+
+One limitation: where a host declares `location = /favicon.ico`, that exact match beats every regex and cannot be overridden. `/favicon.png` still works.
+
+## Why it might not activate
 
 Activation stops with an error if the server reports itself as something other than nginx. WordPress decides that from `$_SERVER['SERVER_SOFTWARE']`, which is not always right: nginx proxying to Apache reports Apache. If you are on nginx and the check disagrees, return `false` from `site_icon_fallback_require_nginx` in an mu-plugin.
 
@@ -43,24 +67,6 @@ wp site-icon-fallback nginx-config      # print the rules for this install
 One caveat before you wire `--strict` into CI: the reachability check is a loopback request to your home URL, so it fails whenever the machine running `wp` cannot reach the site's public address. That is common in containers. Confirm `wp site-icon-fallback status` agrees with `curl -I https://your-site/favicon.ico` before trusting it as a gate.
 
 `nginx-config` prints the same snippet Site Health shows, rooted at this install's home path. It is the remote-host equivalent of `bin/install-nginx-config.sh`, for when the script isn't on the box.
-
-Then open **Tools → Site Health**. The check named *Root icon requests reach WordPress* tells you whether the root paths are reaching PHP, and prints the nginx rules to add if they are not.
-
-## nginx
-
-Some tuned nginx configurations answer static paths themselves, so the requests never reach PHP. The rules in `nginx.conf.example` fix that. On Altis, `bin/install-nginx-config.sh` installs them for you:
-
-```sh
-./bin/install-nginx-config.sh                 # install into .config/nginx-additions.conf
-./bin/install-nginx-config.sh --target PATH   # install into a specific file
-./bin/install-nginx-config.sh --base blog     # subdirectory install
-./bin/install-nginx-config.sh --dry-run       # show the result, write nothing
-./bin/install-nginx-config.sh --remove        # take the block back out
-```
-
-The block is fenced between `# BEGIN Site Icon Fallback` and `# END Site Icon Fallback`. Re-running replaces it rather than appending a second copy — nginx rejects duplicate `location` directives. Reload nginx afterwards.
-
-One limitation: where a host declares `location = /favicon.ico`, that exact match beats every regex and cannot be overridden. `/favicon.png` still works.
 
 ## Filters
 

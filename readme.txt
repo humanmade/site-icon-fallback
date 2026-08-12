@@ -84,5 +84,5 @@ The root paths return a 404. Notably this is *not* what core does for `/favicon.
 
 == Changelog ==
 
-= 1.0.0 =
+= 0.1.0 =
 * Initial release.
