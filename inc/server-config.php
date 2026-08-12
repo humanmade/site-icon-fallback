@@ -22,10 +22,9 @@ defined( 'ABSPATH' ) || exit;
  * Whether the site is served by nginx.
  *
  * Core sets $is_nginx from a substring match on $_SERVER['SERVER_SOFTWARE']
- * (wp-includes/vars.php), with no fallback. That is reliable when nginx talks to PHP-FPM
- * directly, and wrong in two directions otherwise: nginx proxying to Apache reports Apache,
- * and any context without SERVER_SOFTWARE reports nothing at all. Activation depends on
- * this answer, so the gate around it is filterable — see Lifecycle\nginx_is_required().
+ * (wp-includes/vars.php), which is reliable when nginx talks to PHP-FPM directly and wrong
+ * where nginx proxies to Apache — that reports Apache. Activation depends on this answer,
+ * so the gate around it is filterable. See Lifecycle\nginx_is_required().
  *
  * @return bool
  */
@@ -33,6 +32,28 @@ function is_nginx(): bool {
 	global $is_nginx;
 
 	return (bool) $is_nginx;
+}
+
+/**
+ * What the server called itself, if anything did.
+ *
+ * There is a difference between a server saying it is not nginx and no server saying
+ * anything, and only this tells them apart. Core erases it: wp_fix_server_vars() defaults
+ * SERVER_SOFTWARE to '' (wp-includes/load.php) before $is_nginx is derived, so both cases
+ * arrive as `false`.
+ *
+ * WP-CLI is the case that matters. It sets four $_SERVER keys and SERVER_SOFTWARE is not
+ * among them, so every scripted `wp plugin activate` looks exactly like a request served by
+ * the wrong web server.
+ *
+ * @return string Empty when nothing identified itself.
+ */
+function get_server_software(): string {
+	if ( empty( $_SERVER['SERVER_SOFTWARE'] ) ) {
+		return '';
+	}
+
+	return sanitize_text_field( wp_unslash( $_SERVER['SERVER_SOFTWARE'] ) );
 }
 
 /**

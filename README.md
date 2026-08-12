@@ -25,7 +25,24 @@ Sizes answered: 57, 60, 72, 76, 114, 120, 144, 152, 167, 180, 192. Anything else
 
 Put the plugin in `wp-content/plugins/site-icon-fallback` and activate it. It writes no files and no options — activating and deactivating changes nothing on disk or in your database.
 
-Activation stops with an error if the server does not report itself as nginx. WordPress decides that from `$_SERVER['SERVER_SOFTWARE']`, which is not always right: nginx proxying to Apache reports Apache. If you are on nginx and the check disagrees, return `false` from `site_icon_fallback_require_nginx` in an mu-plugin.
+Activation stops with an error if the server reports itself as something other than nginx. WordPress decides that from `$_SERVER['SERVER_SOFTWARE']`, which is not always right: nginx proxying to Apache reports Apache. If you are on nginx and the check disagrees, return `false` from `site_icon_fallback_require_nginx` in an mu-plugin.
+
+Activating with WP-CLI always works. A CLI run has no web server to ask — `SERVER_SOFTWARE` is never set — so the check has nothing to contradict it and warns instead of blocking. Deploys are never stuck.
+
+## WP-CLI
+
+```sh
+wp site-icon-fallback status            # can the plugin actually serve icons here?
+wp site-icon-fallback status --fresh    # re-test instead of reading the cached result
+wp site-icon-fallback status --strict   # exit non-zero when a check fails
+wp site-icon-fallback nginx-config      # print the rules for this install
+```
+
+`status` answers the two questions Site Health does — is a Site Icon set, and do root requests reach WordPress — somewhere a deploy script can read them. It takes `--format=table|json|csv|yaml`.
+
+One caveat before you wire `--strict` into CI: the reachability check is a loopback request to your home URL, so it fails whenever the machine running `wp` cannot reach the site's public address. That is common in containers. Confirm `wp site-icon-fallback status` agrees with `curl -I https://your-site/favicon.ico` before trusting it as a gate.
+
+`nginx-config` prints the same snippet Site Health shows, rooted at this install's home path. It is the remote-host equivalent of `bin/install-nginx-config.sh`, for when the script isn't on the box.
 
 Then open **Tools → Site Health**. The check named *Root icon requests reach WordPress* tells you whether the root paths are reaching PHP, and prints the nginx rules to add if they are not.
 

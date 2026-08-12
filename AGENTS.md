@@ -22,7 +22,8 @@ Two independent layers. Layer 1 works everywhere unaided; Layer 2 needs requests
 | `inc/icon-stream.php` | Emitting those bytes: headers, `ETag`/304 |
 | `inc/site-health.php` | Loopback test reporting whether requests reach PHP |
 | `inc/server-config.php` | nginx detection, and the snippet rooted at `home_url()` |
-| `inc/lifecycle.php` | Refuses activation when nginx is not detected |
+| `inc/lifecycle.php` | Refuses activation when the server reports as non-nginx |
+| `inc/cli.php` | WP-CLI commands, and the guard every `WP_CLI` call sits behind |
 | `inc/admin-notices.php` | Warning when no Site Icon is set |
 | `uninstall.php` | Deletes the cached bytes and the reachability transient |
 | `bin/install-nginx-config.sh` | Idempotent, marker-fenced nginx config installer |
@@ -53,7 +54,11 @@ Change these only with the reasoning in mind — each one exists because the obv
 
 **nginx only, and the plugin writes nothing.** Apache is not generated for, because Apache needs nothing: core's own `.htaccess` block already sends non-existent paths to `index.php`, which is precisely what the nginx snippet asks nginx to do. The plugin previously wrote its own `.htaccess` block for the narrow case of a host that had gutted core's rewrite rules — that cost `htaccess.php`, a multisite active-site registry and a network option, to automate four lines on the one platform where automation was least needed. nginx, where requests genuinely do not reach PHP, has no per-directory config a plugin could write at all. So there is no deactivation hook, nothing is ever written to disk, and the plugin owns no options.
 
-**Activation is refused when nginx is not detected**, so that a plugin which can only speak nginx says so once, to the person who can act on it, rather than sitting there looking installed. `wp_die()` in the activation hook is the entire mechanism — core fires that hook *before* writing `active_plugins`, so nothing is recorded and there is nothing to undo. The gate is filterable via `site_icon_fallback_require_nginx`, and that escape hatch is not optional: `$is_nginx` is a substring match on `$_SERVER['SERVER_SOFTWARE']` with no fallback, so nginx proxying to Apache reports Apache and a context with no `SERVER_SOFTWARE` reports nothing. Without a way past a wrong answer, a false negative locks an install out of its own plugin. The gate never runs from mu-plugins, where activation does not exist.
+**Activation is refused when the server reports itself as non-nginx**, so that a plugin which can only speak nginx says so once, to the person who can act on it, rather than sitting there looking installed. `wp_die()` in the activation hook is the entire mechanism — core fires that hook *before* writing `active_plugins`, so nothing is recorded and there is nothing to undo. Never runs from mu-plugins, where activation does not exist.
+
+**"Not nginx" and "nothing answered" are different, and only the raw value tells them apart.** Core collapses both into `$is_nginx === false`: `wp_fix_server_vars()` defaults `SERVER_SOFTWARE` to `''` (`wp-includes/load.php`) before `vars.php` derives the flag. WP-CLI is why it matters — it sets four `$_SERVER` keys and `SERVER_SOFTWARE` is not among them, so every scripted `wp plugin activate` looks exactly like activation on the wrong web server. Gating on `$is_nginx` alone would mean no deploy could ever install this plugin. `get_server_software()` returns the raw string, and an empty one skips the gate with a CLI warning rather than blocking.
+
+**The `site_icon_fallback_require_nginx` escape hatch is not optional.** Detection reads a header the server chooses to send, and nginx proxying to Apache reports Apache — a positive, wrong answer that the CLI carve-out does not cover. Without a way past it, a false negative locks an install out of its own plugin with no route back through wp-admin.
 
 **The snippet lets a real file win.** `try_files $uri` first: a hand-placed `favicon.ico` at the web root must keep being served, and only reaching `index.php` when the file is absent is what guarantees it.
 
@@ -98,6 +103,8 @@ Change these only with the reasoning in mind — each one exists because the obv
 | `npm test` | Runs both suites below |
 | `npm run test:php` | `tests/test-routing.php` — plain PHP, no WordPress bootstrap |
 | `npm run test:sh` | `tests/test-nginx-installer.sh` — drives the installer against temp files |
+| `wp site-icon-fallback status` | The plugin's own check: icon set, server, reachability, serve mode |
+| `wp site-icon-fallback nginx-config` | Prints the snippet for this install |
 | `npm run env:start` | Boots `@wordpress/env` on port 3031 with Query Monitor |
 
 The coding standard is `humanmade/coding-standards` (HM), not the `WordPress-VIP-Go` set used during development against the host project's `vendor/`.

@@ -1,19 +1,11 @@
 <?php
 /**
- * Site Icon Fallback
- *
- * @package   SiteIconFallback
- * @author    Stuart Shields <stuart@humanmade.com>
- * @license   GPL-2.0-or-later
- *
- * @wordpress-plugin
- *
  * Plugin Name:       Site Icon Fallback
- * Description:       Answers the root icon paths that Safari, Applebot and link unfurlers probe for, using the Site Icon you already set in Settings &rarr; General. Also declares the full set of sized apple-touch-icon tags so fewer clients need to probe at all.
- * Version:           1.0.0
- * Requires at least: 6.0
- * Requires PHP:      8.0
- * Author:            Stuart Shields
+ * Description:       A lightweight fallback that serves your Site Icon from the site root, reducing 404s.
+ * Version:           0.1.0
+ * Requires at least: 6.7
+ * Requires PHP:      8.2
+ * Author:            Human Made
  * Author URI:        https://www.humanmade.com
  * Text Domain:       site-icon-fallback
  * License:           GPL-2.0-or-later
@@ -45,6 +37,7 @@ require_once __DIR__ . '/inc/icon-fetch.php';
 require_once __DIR__ . '/inc/icon-stream.php';
 require_once __DIR__ . '/inc/site-health.php';
 require_once __DIR__ . '/inc/server-config.php';
+require_once __DIR__ . '/inc/cli.php';
 require_once __DIR__ . '/inc/lifecycle.php';
 require_once __DIR__ . '/inc/admin-notices.php';
 

@@ -145,6 +145,7 @@ require_once $base . '/root-handler.php';
 require_once $base . '/icon-fetch.php';
 require_once $base . '/icon-stream.php';
 require_once $base . '/server-config.php';
+require_once $base . '/cli.php';
 require_once $base . '/lifecycle.php';
 require_once $base . '/site-health.php';
 
@@ -476,11 +477,23 @@ function refused(): bool {
 	return false;
 }
 
-$GLOBALS['is_nginx'] = true;
+$_SERVER['SERVER_SOFTWARE'] = 'nginx/1.24.0';
+$GLOBALS['is_nginx']        = true;
 check( 'nginx activates', refused(), false );
 
-$GLOBALS['is_nginx'] = false;
-check( 'anything else is refused', refused(), true );
+$_SERVER['SERVER_SOFTWARE'] = 'Apache/2.4.58';
+$GLOBALS['is_nginx']        = false;
+check( 'a server that says it is not nginx is refused', refused(), true );
+
+// WP-CLI sets four $_SERVER keys and SERVER_SOFTWARE is not one of them, while core's
+// wp_fix_server_vars() defaults it to '' — so $is_nginx is false for every scripted
+// activation, exactly as if the server had answered Apache. Refusing here would mean no
+// deploy could ever install this plugin.
+unset( $_SERVER['SERVER_SOFTWARE'] );
+check( 'no server means nothing to contradict, so activation proceeds', refused(), false );
+check( 'and that is not the same as nginx being detected', SiteIconFallback\Server_Config\is_nginx(), false );
+
+$_SERVER['SERVER_SOFTWARE'] = 'Apache/2.4.58';
 
 // Detection reads a header the server chooses to send: nginx proxying to Apache reports
 // Apache, and a context with no SERVER_SOFTWARE reports nothing. Without a way out, a false
@@ -491,6 +504,63 @@ unset( $GLOBALS['__filters']['site_icon_fallback_require_nginx'] );
 
 check( 'and the gate closes again after it', refused(), true );
 $GLOBALS['is_nginx'] = true;
+unset( $_SERVER['SERVER_SOFTWARE'] );
+
+echo "\nServer identification\n";
+// Core collapses "said nothing" and "said Apache" into the same false, so the plugin has to
+// read the raw value to tell a CLI run from the wrong web server.
+check( 'nothing reported is an empty string', SiteIconFallback\Server_Config\get_server_software(), '' );
+$_SERVER['SERVER_SOFTWARE'] = 'nginx/1.24.0';
+check( 'what the server says is what comes back', SiteIconFallback\Server_Config\get_server_software(), 'nginx/1.24.0' );
+unset( $_SERVER['SERVER_SOFTWARE'] );
+
+echo "\nWP-CLI\n";
+// Nothing here loads WP-CLI, so these assert the guard that keeps the plugin from calling
+// into a class that is not there — every WP_CLI call in cli.php sits behind it.
+check( 'not running under WP-CLI', SiteIconFallback\CLI\is_running(), false );
+check( 'registering commands outside WP-CLI is a no-op', SiteIconFallback\CLI\register_commands(), null );
+check( 'warning outside WP-CLI is a no-op', SiteIconFallback\CLI\warn( 'unheard' ), null );
+
+// The other half, out of process: WP_CLI has to exist before inc/cli.php loads, which this
+// runner cannot arrange for itself while also asserting the absent case above.
+$cli = escapeshellarg( __DIR__ . '/cli-harness.php' );
+
+/** Run the CLI harness in one of its modes and return what it recorded. */
+function cli( string $mode ): array {
+	global $cli;
+
+	return (array) json_decode( (string) shell_exec( "php {$cli} {$mode} 2>&1" ), true );
+}
+
+$registered = cli( 'status' );
+
+check( 'both commands are registered', array_keys( $registered['commands'] ?? [] ), [ 'site-icon-fallback status', 'site-icon-fallback nginx-config' ] );
+check( 'status is wired to its callable', $registered['commands']['site-icon-fallback status']['callable'] ?? null, 'SiteIconFallback\\CLI\\status_command' );
+
+// format_items() is reached through `use WP_CLI;`, which resolves WP_CLI\Utils\ to the
+// global namespace. Written without that import it becomes SiteIconFallback\CLI\WP_CLI\...,
+// which does not exist — and nothing here would say so except this.
+check( 'the format helper resolves to the global namespace', $registered['format'] ?? null, 'json' );
+check( 'every check is reported', count( $registered['rows'] ?? [] ), 4 );
+check( 'the Site Icon is found', $registered['rows'][0]['status'] ?? null, 'ok' );
+check( 'an unidentified server is a warning, not a failure', $registered['rows'][1]['status'] ?? null, 'warn' );
+
+$strict = cli( 'status-strict' );
+
+check( '--strict exits non-zero when checks fail', $strict['halt'] ?? null, 1 );
+check( 'a missing Site Icon is a failure', $strict['rows'][0]['status'] ?? null, 'fail' );
+check( 'an unreachable handler is a failure', $strict['rows'][2]['status'] ?? null, 'fail' );
+
+$printed = cli( 'nginx-config' );
+
+check( 'nginx-config prints the snippet', str_contains( $printed['lines'][0] ?? '', 'location ~ ^/apple-touch-icon' ), true );
+
+// The whole point of the exercise: a scripted activation must not be refused for want of a
+// header WP-CLI never sends.
+$activated = cli( 'activation' );
+
+check( 'CLI activation warns instead of refusing', count( $activated['warnings'] ?? [] ), 1 );
+check( 'and it says why it could not check', str_contains( $activated['warnings'][0] ?? '', 'No web server was available' ), true );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail === 0 ? 0 : 1 );

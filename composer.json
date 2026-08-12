@@ -1,6 +1,6 @@
 {
 	"name": "humanmade/site-icon-fallback",
-	"description": "Answers the root icon paths that Safari, Applebot and link unfurlers probe for, using the Site Icon already set in Settings.",
+	"description": "A lightweight fallback that serves your Site Icon from the site root, reducing 404s.",
 	"type": "wordpress-plugin",
 	"license": "GPL-2.0-or-later",
 	"authors": [
@@ -10,7 +10,7 @@
 		}
 	],
 	"require": {
-		"php": ">=8.0"
+		"php": ">=8.2"
 	},
 	"require-dev": {
 		"humanmade/coding-standards": "^2.0"

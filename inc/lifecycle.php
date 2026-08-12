@@ -9,12 +9,13 @@ declare( strict_types=1 );
 
 namespace SiteIconFallback\Lifecycle;
 
+use SiteIconFallback\CLI;
 use SiteIconFallback\Server_Config;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Refuse to activate on anything but nginx.
+ * Refuse to activate on a server that reports itself as something other than nginx.
  *
  * The plugin generates nginx configuration and nothing else, so on another server it can
  * offer no answer to the one problem it exists to report. Failing at activation says so
@@ -34,11 +35,24 @@ function on_activation(): void {
 		return;
 	}
 
+	// Nothing identified itself, so nothing has contradicted us either. This is WP-CLI,
+	// where SERVER_SOFTWARE is never set and every scripted activation would otherwise look
+	// identical to activation on the wrong server. Refusing here would mean no deploy could
+	// ever install this plugin, which is a worse failure than activating on a server we have
+	// not confirmed — Site Health still reports the truth once real requests arrive.
+	if ( Server_Config\get_server_software() === '' ) {
+		CLI\warn(
+			__( 'Site Icon Fallback supports nginx only. No web server was available to check against, so activation went ahead — run `wp site-icon-fallback status` against the live site to confirm it works.', 'site-icon-fallback' )
+		);
+
+		return;
+	}
+
 	wp_die(
 		wp_kses(
 			sprintf(
 				/* translators: %s: the site_icon_fallback_require_nginx filter name, in code tags. */
-				__( 'Site Icon Fallback only supports nginx, and this server does not report itself as nginx. If that detection is wrong — nginx proxying to Apache reports Apache, and WP-CLI may report nothing — return false from the %s filter in an mu-plugin to activate anyway.', 'site-icon-fallback' ),
+				__( 'Site Icon Fallback only supports nginx, and this server reports itself as something else. If that is wrong — nginx proxying to Apache reports Apache — return false from the %s filter in an mu-plugin to activate anyway.', 'site-icon-fallback' ),
 				'<code>site_icon_fallback_require_nginx</code>'
 			),
 			[ 'code' => [] ]

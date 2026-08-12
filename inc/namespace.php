@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace SiteIconFallback;
 
+use SiteIconFallback\CLI;
 use SiteIconFallback\Site_Health;
 
 defined( 'ABSPATH' ) || exit;
@@ -58,6 +59,8 @@ function bootstrap(): void {
 	add_action( 'admin_notices', __NAMESPACE__ . '\\Admin_Notices\\render_missing_icon_notice' );
 
 	register_activation_hook( PLUGIN_FILE, __NAMESPACE__ . '\\Lifecycle\\on_activation' );
+
+	CLI\register_commands();
 }
 
 /**

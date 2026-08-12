@@ -8,7 +8,7 @@ Stable tag: 0.1.0
 License: GPL-2.0-or-later
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
 
-Serves the root icon paths Safari, Applebot and link unfurlers probe for, from the Site Icon you already set.
+A lightweight fallback that serves your Site Icon from the site root, reducing 404s.
 
 == Description ==
 
@@ -45,7 +45,18 @@ Restart or reload nginx afterwards. On Altis Cloud the configuration ships with 
 
 = Why won't it activate? =
 
-The plugin supports nginx only, and refuses to activate on a server it cannot identify as nginx. WordPress works that out from `$_SERVER['SERVER_SOFTWARE']`, which your server chooses what to send — nginx sitting in front of Apache reports Apache, for instance. If you are on nginx and the check disagrees, return false from the `site_icon_fallback_require_nginx` filter in an mu-plugin.
+The plugin supports nginx only, and refuses to activate when your web server reports itself as something else. WordPress works that out from `$_SERVER['SERVER_SOFTWARE']`, which the server chooses what to send — nginx sitting in front of Apache reports Apache, for instance. If you are on nginx and the check disagrees, return false from the `site_icon_fallback_require_nginx` filter in an mu-plugin.
+
+Activating with WP-CLI always works. There is no web server in a CLI run to ask, so the check has nothing to go on and does not stand in the way of a deploy. It prints a warning instead.
+
+== WP-CLI ==
+
+    wp site-icon-fallback status              # can the plugin actually serve icons here?
+    wp site-icon-fallback status --fresh      # re-test instead of reading the cached result
+    wp site-icon-fallback status --strict     # exit non-zero when a check fails, for CI
+    wp site-icon-fallback nginx-config        # print the rules for this install
+
+`status` answers the same two questions Site Health does — is there a Site Icon, and do root requests reach WordPress — in a place a deploy script can read. `--format=json` is supported.
 
 = Do I need to change my server configuration? =
 

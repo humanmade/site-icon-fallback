@@ -1,7 +1,7 @@
 {
 	"name": "site-icon-fallback",
 	"private": true,
-	"description": "Answers the root icon paths that Safari, Applebot and link unfurlers probe for, using the Site Icon already set in Settings",
+	"description": "A lightweight fallback that serves your Site Icon from the site root, reducing 404s.",
 	"scripts": {
 		"env:cli": "npx @wordpress/env run cli",
 		"env:db": "npx @wordpress/env run cli -- mysql -uroot -ppassword wordpress --host=mysql",
