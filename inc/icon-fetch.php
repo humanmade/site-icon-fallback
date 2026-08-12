@@ -57,6 +57,21 @@ const ALLOWED_TYPES = [
 ];
 
 /**
+ * Leading bytes that identify an image format, for responses that declare no type.
+ *
+ * Every value here is already in ALLOWED_TYPES, which is what keeps this from widening what
+ * may be served: recognising the bytes can name a type, never admit a new one.
+ */
+const TYPE_SIGNATURES = [
+	"\x89PNG\r\n\x1a\n" => 'image/png',
+	"\xFF\xD8\xFF"      => 'image/jpeg',
+	'GIF87a'            => 'image/gif',
+	'GIF89a'            => 'image/gif',
+	"\x00\x00\x01\x00"  => 'image/x-icon',
+	'BM'                => 'image/bmp',
+];
+
+/**
  * The icon at a URL, as bytes plus content type.
  *
  * Reads from disk when the URL maps into the uploads directory, and falls back to an HTTP
@@ -170,6 +185,41 @@ function get_servable_type( string $declared ): ?string {
 }
 
 /**
+ * The content type a body's own leading bytes identify it as.
+ *
+ * Only consulted where a response declares no type at all, which is not the same claim as
+ * declaring one this plugin refuses. Altis Tachyon answers with a 200, the real image, and
+ * no Content-Type header; refusing that costs the byte path on every install behind it.
+ *
+ * Nothing the allow-list exists to keep out survives this. An image service's HTML error
+ * page carries no image signature, and neither does an SVG, so both still come back null and
+ * fall through to a redirect.
+ *
+ * @param string $body Response body.
+ * @return string|null Null when the bytes match no format we will serve.
+ */
+function sniff_type( string $body ): ?string {
+	foreach ( TYPE_SIGNATURES as $signature => $type ) {
+		if ( str_starts_with( $body, (string) $signature ) ) {
+			return $type;
+		}
+	}
+
+	// RIFF and ISO base media are container formats that name what they hold in a later
+	// field, so a signature compared at byte zero cannot tell a WebP from a WAV or an AVIF
+	// from any other MP4-family file.
+	if ( str_starts_with( $body, 'RIFF' ) && substr( $body, 8, 4 ) === 'WEBP' ) {
+		return 'image/webp';
+	}
+
+	if ( substr( $body, 4, 4 ) === 'ftyp' && in_array( substr( $body, 8, 4 ), [ 'avif', 'avis' ], true ) ) {
+		return 'image/avif';
+	}
+
+	return null;
+}
+
+/**
  * Fetch the icon over HTTP.
  *
  * Asks for PNG explicitly. Image services commonly content-negotiate on Accept and will
@@ -204,8 +254,12 @@ function request_icon( string $url ): ?array {
 		return null;
 	}
 
-	$header = wp_remote_retrieve_header( $response, 'content-type' );
-	$type   = is_string( $header ) ? get_servable_type( $header ) : null;
+	$header   = wp_remote_retrieve_header( $response, 'content-type' );
+	$declared = is_string( $header ) ? trim( $header ) : '';
+
+	// A declared type is the answer, right or wrong: sniffing is the fallback for silence,
+	// not a second opinion on something the origin already told us.
+	$type = $declared !== '' ? get_servable_type( $declared ) : sniff_type( $body );
 
 	if ( $type === null ) {
 		return null;

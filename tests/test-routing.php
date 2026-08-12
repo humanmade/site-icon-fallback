@@ -329,6 +329,39 @@ $negotiated = SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com
 check( 'parameters are stripped and the type lowercased', is_array( $negotiated ) ? $negotiated['type'] : null, 'image/png' );
 check( 'the response body is capped before it is read', $GLOBALS['__http_args']['limit_response_size'] ?? null, SiteIconFallback\Icon_Fetch\MAX_ICON_BYTES + 1 );
 
+// Declaring nothing is not the same claim as declaring something refused. Altis Tachyon
+// answers image requests with a 200, the real bytes, and no Content-Type header at all, so
+// treating the two alike costs the byte path on every install sitting behind it.
+$GLOBALS['__http'] = [ 'code' => 200, 'body' => $png, 'type' => '' ];
+$undeclared = SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' );
+check( 'an undeclared type is recognised from the bytes', is_array( $undeclared ) ? $undeclared['type'] : null, 'image/png' );
+
+// What keeps the allow-list intact: sniffing can only ever name a type already in it, and
+// none of the things the list exists to refuse carry an image signature.
+$GLOBALS['__http']['body'] = '<!DOCTYPE html><html><body>404 Not Found</body></html>';
+check( 'an undeclared HTML error page is still refused', SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
+
+$GLOBALS['__http']['body'] = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
+check( 'an undeclared SVG is still refused', SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
+
+$GLOBALS['__http']['body'] = "\x00\x00\x01\x00\x01\x00\x10\x10";
+$sniffed_ico = SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.ico' );
+check( 'an undeclared ico is recognised', is_array( $sniffed_ico ) ? $sniffed_ico['type'] : null, 'image/x-icon' );
+
+// RIFF and ISO base media containers name their format in a later field, so a signature
+// compared at byte zero cannot tell a WebP from any other RIFF file.
+$GLOBALS['__http']['body'] = 'RIFF' . "\x24\x00\x00\x00" . 'WEBPVP8 ';
+$sniffed_webp = SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' );
+check( 'an undeclared webp is recognised past its container header', is_array( $sniffed_webp ) ? $sniffed_webp['type'] : null, 'image/webp' );
+
+$GLOBALS['__http']['body'] = 'RIFF' . "\x24\x00\x00\x00" . 'WAVEfmt ';
+check( 'a RIFF container that is not an image is refused', SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
+
+// A declared type is still the one that counts. Sniffing is the fallback for silence, not
+// a second opinion on an answer already given.
+$GLOBALS['__http'] = [ 'code' => 200, 'body' => $png, 'type' => 'text/html; charset=UTF-8' ];
+check( 'a declared type is not overridden by the bytes', SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
+
 echo "\nFailed fetches are not retried on every request\n";
 // Every miss otherwise costs a blocking three-second request, and the traffic on these
 // paths is anonymous crawlers arriving in bursts.
