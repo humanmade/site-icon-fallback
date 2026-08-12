@@ -14,18 +14,17 @@ Two independent layers. Layer 1 works everywhere unaided; Layer 2 needs requests
 
 | File | Responsibility |
 | --- | --- |
-| `plugin.php` | Header, `PLUGIN_FILE`, requires, calls `bootstrap()` |
+| `plugin.php` | Header, `VERSION`, requires, calls `bootstrap()` |
 | `inc/namespace.php` | Hook wiring, supported sizes, cache lifetimes |
 | `inc/meta-tags.php` | **Layer 1** — sized `apple-touch-icon` tags via `site_icon_meta_tags` |
 | `inc/root-handler.php` | **Layer 2** — path matching, size resolution, response dispatch |
 | `inc/icon-fetch.php` | Getting the icon bytes: cache, local disk, HTTP, type allow-list |
 | `inc/icon-stream.php` | Emitting those bytes: headers, `ETag`/304 |
 | `inc/site-health.php` | Loopback test reporting whether requests reach PHP |
-| `inc/server-config.php` | Generates the rules: nginx snippet, Apache rules, home root |
-| `inc/htaccess.php` | Writes and removes the marker-fenced block in `.htaccess` |
-| `inc/lifecycle.php` | Activation/deactivation, including multisite |
+| `inc/server-config.php` | nginx detection, and the snippet rooted at `home_url()` |
+| `inc/lifecycle.php` | Refuses activation when nginx is not detected |
 | `inc/admin-notices.php` | Warning when no Site Icon is set |
-| `uninstall.php` | Deletes the plugin's option and cached bytes on delete |
+| `uninstall.php` | Deletes the cached bytes and the reachability transient |
 | `bin/install-nginx-config.sh` | Idempotent, marker-fenced nginx config installer |
 
 ## Decisions that are load-bearing
@@ -52,25 +51,27 @@ Change these only with the reasoning in mind — each one exists because the obv
 
 **Marker header `X-Site-Icon-Fallback`.** A 404 alone is ambiguous — it is what the web server sends when it never routed the request *and* what this plugin sends when there is no icon. Only the header distinguishes them, and Site Health depends on it.
 
-**Both server configs let a real file win.** The nginx snippet uses `try_files $uri`; the Apache rules carry `RewriteCond %{REQUEST_FILENAME} !-f` before *each* `RewriteRule` (a condition applies only to the rule that follows it). Core's own block has the same guard, so for an existing file core's rule declines and control reaches ours — which without this rewrites a hand-placed `favicon.ico` to `index.php` and silently stops serving it on activation.
+**nginx only, and the plugin writes nothing.** Apache is not generated for, because Apache needs nothing: core's own `.htaccess` block already sends non-existent paths to `index.php`, which is precisely what the nginx snippet asks nginx to do. The plugin previously wrote its own `.htaccess` block for the narrow case of a host that had gutted core's rewrite rules — that cost `htaccess.php`, a multisite active-site registry and a network option, to automate four lines on the one platform where automation was least needed. nginx, where requests genuinely do not reach PHP, has no per-directory config a plugin could write at all. So there is no deactivation hook, nothing is ever written to disk, and the plugin owns no options.
 
-**Server config is rooted at `home_url()`, not at `/`.** The request handler answers paths relative to the home URL, so rules written against the domain root never match on a subdirectory install. `get_apache_rules()` derives a `RewriteBase`; `get_nginx_snippet()` rebases the bundled `nginx.conf.example` through `apply_home_root()`, moving both the `location` patterns and the `try_files` fallback — the fallback matters as much, since `/index.php` at the domain root is not this install. The shell installer takes `--base` for the same reason, and a test asserts the two produce the same block, since only the rebasing can drift.
+**Activation is refused when nginx is not detected**, so that a plugin which can only speak nginx says so once, to the person who can act on it, rather than sitting there looking installed. `wp_die()` in the activation hook is the entire mechanism — core fires that hook *before* writing `active_plugins`, so nothing is recorded and there is nothing to undo. The gate is filterable via `site_icon_fallback_require_nginx`, and that escape hatch is not optional: `$is_nginx` is a substring match on `$_SERVER['SERVER_SOFTWARE']` with no fallback, so nginx proxying to Apache reports Apache and a context with no `SERVER_SOFTWARE` reports nothing. Without a way past a wrong answer, a false negative locks an install out of its own plugin. The gate never runs from mu-plugins, where activation does not exist.
+
+**The snippet lets a real file win.** `try_files $uri` first: a hand-placed `favicon.ico` at the web root must keep being served, and only reaching `index.php` when the file is absent is what guarantees it.
+
+**Server config is rooted at `home_url()`, not at `/`.** The request handler answers paths relative to the home URL, so rules written against the domain root never match on a subdirectory install. `get_nginx_snippet()` rebases the bundled `nginx.conf.example` through `apply_home_root()`, moving both the `location` patterns and the `try_files` fallback — the fallback matters as much, since `/index.php` at the domain root is not this install. The shell installer takes `--base` for the same reason, and a test asserts the two produce the same block, since only the rebasing can drift.
 
 **The Site Health test is async.** Direct tests run inline while the Site Health page renders, and this one makes a loopback request with a three-second timeout; core registers its own loopback test as async for the same reason. Two details are load-bearing: `TEST_SLUG` carries **no underscores**, because Site Health's JavaScript builds the Ajax action as `'health-check-' + test.replace( '_', '-' )` and a string argument to `replace()` swaps only the first match (core's own async tests each happen to contain exactly one underscore); and `async_direct_test` is supplied, because the weekly cron run otherwise posts the raw slug as the action name rather than the prefixed one the browser sends.
 
 **Every module file carries `defined( 'ABSPATH' ) || exit;`.** Not decoration — a direct request for `inc/icon-stream.php` fatals on the undefined `KB_IN_BYTES` without it. The `PSR1.Files.SideEffects` exclusion in `.phpcs.xml` is justified on the grounds that the guard is present, so the two have to stay true together.
 
-**Uninstall cleans this site, not the network.** `delete_site_option()` removes the active-site registry install-wide, which is the only thing that would otherwise persist. The cached-bytes transients are keyed by a hash of the icon URL, so they can only be matched, not named — one `LIKE` sweep of the current site's options table, with the whole pattern passed through `esc_like()` because `_` is a single-character wildcard and `_transient_` is mostly underscores. Other sites on a network are deliberately left alone: what they hold expires within a day by itself and core's daily `delete_expired_transients()` reclaims it, which beats an unbounded `switch_to_blog()` loop while an admin waits on a delete.
-
-**Server rules are install-wide, not per-site.** On multisite, per-site deactivation must not tear down config other sites still use. `lifecycle.php` tracks active sites in a network option so only the last one out removes the rules.
+**Uninstall cleans this site, not the network.** Everything the plugin stores is a transient — it owns no options. The cached-bytes ones are keyed by a hash of the icon URL, so they can only be matched, not named: one `LIKE` sweep of the current site's options table, with the whole pattern passed through `esc_like()` because `_` is a single-character wildcard and `_transient_` is mostly underscores. Other sites on a network are deliberately left alone: what they hold expires within a day by itself and core's daily `delete_expired_transients()` reclaims it, which beats an unbounded `switch_to_blog()` loop while an admin waits on a delete. A test asserts no option is deleted, because none should ever be written.
 
 ## Environment constraints
 
-**Requests must reach PHP.** Apache is fine — core's own `.htaccess` sends non-existent files to `index.php`. Standard nginx `try_files` is fine. Tuned nginx configs that terminate static extensions are not, and need `nginx.conf.example`.
+**Requests must reach PHP.** Apache is fine unaided — core's own `.htaccess` sends non-existent files to `index.php`, so the plugin works there with nothing generated for it. Standard nginx `try_files` is fine too. Tuned nginx configs that terminate static extensions are not, and are the reason `nginx.conf.example` exists.
 
 **`location = /favicon.ico` cannot be overridden.** An exact-match location beats every regex regardless of ordering, and redeclaring it is a duplicate-location error that stops nginx booting. Where a host ships one (Altis does), `/favicon.ico` is unwinnable; `/favicon.png` still works.
 
-**Managed hosts block writes outside uploads.** The `.htaccess` code is self-hosted only. It already degrades correctly via an `is_nginx()` check and then an `is_writable()` check, so no special-casing is needed — just don't expect it to run.
+**Managed hosts block writes outside uploads.** This is no longer a constraint to work around — the plugin writes no files anywhere. It is why it does not: any file-writing path would have been dead code on exactly the hosts this plugin is deployed to.
 
 ## Conventions
 
@@ -83,7 +84,7 @@ Change these only with the reasoning in mind — each one exists because the obv
 - Type hints on parameters and returns.
 - Text domain `site-icon-fallback`, matching the slug.
 - `defined( 'ABSPATH' ) || exit;` after the namespace and any `use` imports, in every file. `plugin.php` keeps the `if` form the plugin-header convention uses.
-- **One concern per file, and the tell is the word "and".** A file whose description needs one is two files. Both splits so far ran along the same seam — *produce* versus *use*: `server-config.php` decides what the server rules are and `htaccess.php` writes them to a file; `icon-fetch.php` gets the icon's bytes and `icon-stream.php` emits them. The dependency points one way each time, and the caller imports both (`Icon_Fetch\fetch_icon()`, then `Icon_Stream\send_icon_bytes()`).
+- **One concern per file, and the tell is the word "and".** A file whose description needs one is two files. `icon-fetch.php` gets the icon's bytes and `icon-stream.php` emits them; the dependency points one way, and the caller imports both (`Icon_Fetch\fetch_icon()`, then `Icon_Stream\send_icon_bytes()`).
 - Length is the symptom, not the rule. Past roughly 200 lines, look for the seam — but don't cut where there isn't one. `icon-fetch.php` is 218 lines of a single concern, and pulling `ALLOWED_TYPES` out would only separate the allow-list from its two callers.
 - Comments explain *why*, particularly where a simpler-looking alternative is wrong.
 

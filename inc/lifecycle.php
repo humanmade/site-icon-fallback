@@ -1,6 +1,6 @@
 <?php
 /**
- * Activation and deactivation, including multisite.
+ * Activation.
  *
  * @package SiteIconFallback
  */
@@ -9,87 +9,59 @@ declare( strict_types=1 );
 
 namespace SiteIconFallback\Lifecycle;
 
-use SiteIconFallback\Htaccess;
+use SiteIconFallback\Server_Config;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Network option listing the sites with the plugin individually active.
+ * Refuse to activate on anything but nginx.
  *
- * Server rules are install-wide rather than per-site: one .htaccess, one nginx config.
- * That makes deactivation on a network dangerous, because tearing the rules down for the
- * site in front of you would break every other site still relying on them. Tracking who
- * is active makes the last one out responsible for turning off the lights.
+ * The plugin generates nginx configuration and nothing else, so on another server it can
+ * offer no answer to the one problem it exists to report. Failing at activation says so
+ * once, in front of the person who can act on it, rather than leaving a plugin that looks
+ * installed and silently is not the thing they wanted.
  *
- * Network activation does not populate this — it activates everywhere at once and
- * deactivates the same way, so there is nothing to count.
- */
-const ACTIVE_SITES_OPTION = 'site_icon_fallback_active_sites';
-
-/**
- * Add server rules when the plugin is activated.
+ * wp_die() here is enough on its own: core fires this hook before it writes the plugin into
+ * the active_plugins option (wp-admin/includes/plugin.php), so stopping here means the
+ * plugin is never recorded as active. There is nothing to undo.
  *
- * @param bool $network_wide Whether the plugin was network activated.
+ * Never fires for a plugin loaded from mu-plugins, where activation does not exist.
+ *
  * @return void
  */
-function on_activation( bool $network_wide = false ): void {
-	if ( is_multisite() && ! $network_wide ) {
-		set_active_sites( array_merge( get_active_sites(), [ get_current_blog_id() ] ) );
+function on_activation(): void {
+	if ( ! nginx_is_required() || Server_Config\is_nginx() ) {
+		return;
 	}
 
-	Htaccess\maybe_write();
-}
-
-/**
- * Remove server rules when the plugin is deactivated.
- *
- * Leaving them behind is worse than never having added them: the rewrite would keep
- * handing icon requests to WordPress, which no longer has anything to answer them with,
- * so every request would render a full themed 404 in place of the web server's tiny one.
- *
- * @param bool $network_wide Whether the plugin was network deactivated.
- * @return void
- */
-function on_deactivation( bool $network_wide = false ): void {
-	if ( is_multisite() && ! $network_wide ) {
-		set_active_sites( array_diff( get_active_sites(), [ get_current_blog_id() ] ) );
-
-		if ( get_active_sites() !== [] ) {
-			return;
-		}
-	}
-
-	if ( $network_wide ) {
-		set_active_sites( [] );
-	}
-
-	Htaccess\maybe_remove();
-}
-
-/**
- * Sites with the plugin individually active.
- *
- * @return int[] Blog IDs.
- */
-function get_active_sites(): array {
-	$sites = get_site_option( ACTIVE_SITES_OPTION, [] );
-
-	if ( ! is_array( $sites ) ) {
-		return [];
-	}
-
-	return array_values( array_unique( array_map( 'intval', $sites ) ) );
-}
-
-/**
- * Record which sites have the plugin individually active.
- *
- * @param array<int, int|string> $sites Blog IDs.
- * @return void
- */
-function set_active_sites( array $sites ): void {
-	update_site_option(
-		ACTIVE_SITES_OPTION,
-		array_values( array_unique( array_map( 'intval', $sites ) ) )
+	wp_die(
+		wp_kses(
+			sprintf(
+				/* translators: %s: the site_icon_fallback_require_nginx filter name, in code tags. */
+				__( 'Site Icon Fallback only supports nginx, and this server does not report itself as nginx. If that detection is wrong — nginx proxying to Apache reports Apache, and WP-CLI may report nothing — return false from the %s filter in an mu-plugin to activate anyway.', 'site-icon-fallback' ),
+				'<code>site_icon_fallback_require_nginx</code>'
+			),
+			[ 'code' => [] ]
+		),
+		esc_html__( 'Plugin could not be activated', 'site-icon-fallback' ),
+		[ 'back_link' => true ]
 	);
+}
+
+/**
+ * Whether activation is gated on nginx being detected.
+ *
+ * The escape hatch for the detection being wrong. Core has no reliable answer for what is
+ * in front of PHP — it reads a header the server chooses to send — so an install that knows
+ * better must be able to say so, rather than being locked out by a missing string.
+ *
+ * @return bool
+ */
+function nginx_is_required(): bool {
+	/**
+	 * Filters whether the plugin refuses to activate on a server it cannot identify as nginx.
+	 *
+	 * @param bool $required Whether nginx detection gates activation.
+	 */
+	return (bool) apply_filters( 'site_icon_fallback_require_nginx', true );
 }

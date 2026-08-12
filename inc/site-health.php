@@ -119,12 +119,12 @@ function run_reachability_test(): array {
 	$result['status']      = 'recommended';
 	$result['label']       = __( 'Root icon requests do not reach WordPress', 'site-icon-fallback' );
 	$result['description'] = '<p>' . esc_html__(
-		'Your web server answers /apple-touch-icon.png itself instead of passing it to WordPress, so Safari, Applebot and link unfurlers get a 404. Add the rule below to your server configuration to fix this.',
+		'Your web server answers /apple-touch-icon.png itself instead of passing it to WordPress, so Safari, Applebot and link unfurlers get a 404. Add the nginx rules below to your server block to fix this.',
 		'site-icon-fallback'
 	) . '</p>';
 	$result['actions']     = sprintf(
 		'<pre style="overflow:auto;padding:1em;background:#f6f7f7;">%s</pre>',
-		esc_html( Server_Config\get_server_snippet() )
+		esc_html( Server_Config\get_nginx_snippet() )
 	);
 
 	return $result;

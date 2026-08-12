@@ -1,9 +1,13 @@
 <?php
 /**
- * The rules this site's web server needs to route root icon paths to WordPress.
+ * The nginx configuration needed where the web server answers root paths itself.
  *
- * Generates them only. Writing them into a file is inc/htaccess.php's job, and on nginx it
- * is a human's — Site Health prints what get_server_snippet() returns.
+ * Generated only, for a human or a deploy to place: nginx has no per-directory
+ * configuration a plugin could write, so Site Health prints this and stops there.
+ *
+ * nginx is the only server this generates for. Apache needs nothing — core's own .htaccess
+ * block already sends non-existent paths to index.php, which is exactly what this asks
+ * nginx to do.
  *
  * @package SiteIconFallback
  */
@@ -15,16 +19,13 @@ namespace SiteIconFallback\Server_Config;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * The configuration snippet appropriate to this server.
- *
- * @return string
- */
-function get_server_snippet(): string {
-	return is_nginx() ? get_nginx_snippet() : implode( "\n", get_apache_rules() );
-}
-
-/**
  * Whether the site is served by nginx.
+ *
+ * Core sets $is_nginx from a substring match on $_SERVER['SERVER_SOFTWARE']
+ * (wp-includes/vars.php), with no fallback. That is reliable when nginx talks to PHP-FPM
+ * directly, and wrong in two directions otherwise: nginx proxying to Apache reports Apache,
+ * and any context without SERVER_SOFTWARE reports nothing at all. Activation depends on
+ * this answer, so the gate around it is filterable — see Lifecycle\nginx_is_required().
  *
  * @return bool
  */
@@ -37,9 +38,8 @@ function is_nginx(): bool {
 /**
  * The path WordPress is installed under, always with both slashes.
  *
- * Both server configs need it, and they must agree: the request handler answers paths
- * relative to the home URL, so rules written against the domain root would never match on
- * a subdirectory install.
+ * The request handler answers paths relative to the home URL, so rules written against the
+ * domain root would never match on a subdirectory install.
  *
  * @return string A path such as '/' or '/blog/'.
  */
@@ -47,33 +47,6 @@ function get_home_root(): string {
 	$home_root = (string) wp_parse_url( home_url( '/' ), PHP_URL_PATH );
 
 	return $home_root === '' ? '/' : trailingslashit( $home_root );
-}
-
-/**
- * Apache rewrite rules routing root icon paths to WordPress.
- *
- * Each rewrite is guarded by a file-exists condition, matching the `try_files $uri` in the
- * nginx snippet: a real favicon.ico sitting at the web root must keep being served. Core's
- * own block carries the same guard, so for an existing file core's rule declines and
- * control reaches ours — which without this would rewrite it to index.php anyway and
- * silently stop serving a hand-placed icon on activation. A RewriteCond applies only to
- * the rule immediately following it, hence one per rule rather than one for the block.
- *
- * @return string[] One rule per line.
- */
-function get_apache_rules(): array {
-	$home_root = get_home_root();
-
-	return [
-		'<IfModule mod_rewrite.c>',
-		'RewriteEngine On',
-		'RewriteBase ' . $home_root,
-		'RewriteCond %{REQUEST_FILENAME} !-f',
-		'RewriteRule ^apple-touch-icon(-precomposed)?(-[0-9]+x[0-9]+)?\.png$ index.php [L]',
-		'RewriteCond %{REQUEST_FILENAME} !-f',
-		'RewriteRule ^favicon\.(ico|png)$ index.php [L]',
-		'</IfModule>',
-	];
 }
 
 /**

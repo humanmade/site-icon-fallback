@@ -45,7 +45,6 @@ require_once __DIR__ . '/inc/icon-fetch.php';
 require_once __DIR__ . '/inc/icon-stream.php';
 require_once __DIR__ . '/inc/site-health.php';
 require_once __DIR__ . '/inc/server-config.php';
-require_once __DIR__ . '/inc/htaccess.php';
 require_once __DIR__ . '/inc/lifecycle.php';
 require_once __DIR__ . '/inc/admin-notices.php';
 

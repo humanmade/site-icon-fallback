@@ -10,24 +10,19 @@ declare( strict_types=1 );
 namespace SiteIconFallback\Uninstall;
 
 use SiteIconFallback\Icon_Fetch;
-use SiteIconFallback\Lifecycle;
 use SiteIconFallback\Site_Health;
 
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 
-// WordPress loads this file on its own, without the plugin, so the option and transient
-// names have to come from somewhere. Requiring the modules that own them keeps this file
-// from carrying a second copy of every string, which is how an uninstaller quietly stops
-// matching what the plugin writes. None of them registers a hook when merely loaded.
+// WordPress loads this file on its own, without the plugin, so the transient names have to
+// come from somewhere. Requiring the modules that own them keeps this file from carrying a
+// second copy of every string, which is how an uninstaller quietly stops matching what the
+// plugin writes. Neither registers a hook when merely loaded.
 require_once __DIR__ . '/inc/icon-fetch.php';
-require_once __DIR__ . '/inc/lifecycle.php';
 require_once __DIR__ . '/inc/site-health.php';
 
-// The registry of individually-activated sites. A network option, so this is the whole of
-// it however many sites there are, and the only thing here that would otherwise outlive
-// the plugin indefinitely.
-delete_site_option( Lifecycle\ACTIVE_SITES_OPTION );
-
+// Everything this plugin stores is a transient. It writes no options at all: it reads the
+// Site Icon core already owns, and it registers no activation or deactivation hook.
 delete_transient( Site_Health\REACHABILITY_TRANSIENT );
 
 // The cached icon bytes are keyed by a hash of the icon URL, so they cannot be named — only

@@ -58,7 +58,6 @@ function bootstrap(): void {
 	add_action( 'admin_notices', __NAMESPACE__ . '\\Admin_Notices\\render_missing_icon_notice' );
 
 	register_activation_hook( PLUGIN_FILE, __NAMESPACE__ . '\\Lifecycle\\on_activation' );
-	register_deactivation_hook( PLUGIN_FILE, __NAMESPACE__ . '\\Lifecycle\\on_deactivation' );
 }
 
 /**

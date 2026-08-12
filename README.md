@@ -18,13 +18,16 @@ Sizes answered: 57, 60, 72, 76, 114, 120, 144, 152, 167, 180, 192. Anything else
 
 - WordPress 6.0 or later, PHP 8.0 or later.
 - A Site Icon set in **Settings → General**. Without one, the root paths return 404 and an admin notice says so.
-- Requests for the root paths must reach PHP. Apache and standard nginx `try_files` configurations already do this.
+- **nginx.** The plugin refuses to activate on a server it cannot identify as nginx.
+- Requests for the root paths must reach PHP. A standard nginx `try_files` configuration already does this.
 
 ## Install
 
-Put the plugin in `wp-content/plugins/site-icon-fallback` and activate it. On multisite the server rules are shared across the network, so deactivating one site only takes them down when it is the last one still using them.
+Put the plugin in `wp-content/plugins/site-icon-fallback` and activate it. It writes no files and no options — activating and deactivating changes nothing on disk or in your database.
 
-Then open **Tools → Site Health**. The check named *Root icon requests reach WordPress* tells you whether the root paths are reaching PHP, and prints the exact configuration snippet if they are not.
+Activation stops with an error if the server does not report itself as nginx. WordPress decides that from `$_SERVER['SERVER_SOFTWARE']`, which is not always right: nginx proxying to Apache reports Apache. If you are on nginx and the check disagrees, return `false` from `site_icon_fallback_require_nginx` in an mu-plugin.
+
+Then open **Tools → Site Health**. The check named *Root icon requests reach WordPress* tells you whether the root paths are reaching PHP, and prints the nginx rules to add if they are not.
 
 ## nginx
 
@@ -46,6 +49,7 @@ One limitation: where a host declares `location = /favicon.ico`, that exact matc
 
 | Filter | Default | What it changes |
 | --- | --- | --- |
+| `site_icon_fallback_require_nginx` | `true` | `false` allows activation on any server |
 | `site_icon_fallback_serve_mode` | `stream` | `redirect` sends a 302 instead of the bytes |
 | `site_icon_fallback_declared_sizes` | `[120, 152, 167, 180]` | Sizes considered for the page head |
 | `site_icon_fallback_content_max_age` | `DAY_IN_SECONDS` | How long clients may cache the icon |
@@ -70,7 +74,7 @@ The tests need no WordPress bootstrap, no database and no PHPUnit — `tests/tes
 
 ## Uninstalling
 
-Deactivating takes back out the `.htaccess` block the plugin wrote, where it wrote one. Deleting the plugin also clears its network option and cached icon bytes. nginx rules are never removed automatically — run `bin/install-nginx-config.sh --remove` yourself.
+Deleting the plugin clears its cached icon bytes. That is all it stores — there are no options to clean up. nginx rules are never removed automatically, so run `bin/install-nginx-config.sh --remove` yourself.
 
 ## License
 

@@ -22,7 +22,9 @@ It does two things:
 
    That last part matters. WordPress generates only four Site Icon derivatives — 270, 192, 180 and 32 — and resolves any other size to the smallest generated one at least as large. Without an image service in front, all four candidate sizes come back as the same 180x180 file, and declaring them all would put four tags in your head claiming four sizes for one image. Sizes that collapse onto the same file are declared once, at the largest size that resolved to it. With an image service such as Tachyon or Photon, every size resolves to its own derivative and all four are declared.
 
-2. **Answers the root paths.** Requests for `/apple-touch-icon*.png`, `/favicon.ico` and `/favicon.png` return the Site Icon at the size asked for, as a 200 with the image bytes. This needs those requests to reach WordPress, which they already do on Apache and on standard nginx configurations.
+2. **Answers the root paths.** Requests for `/apple-touch-icon*.png`, `/favicon.ico` and `/favicon.png` return the Site Icon at the size asked for, as a 200 with the image bytes. This needs those requests to reach WordPress, which they already do on a standard nginx configuration.
+
+This plugin supports nginx and will not activate on another server.
 
 Where they don't reach WordPress — some tuned nginx configurations answer static paths themselves — **Tools > Site Health** tests it directly and prints the exact configuration snippet you need.
 
@@ -41,9 +43,13 @@ Restart or reload nginx afterwards. On Altis Cloud the configuration ships with 
 
 == Frequently Asked Questions ==
 
+= Why won't it activate? =
+
+The plugin supports nginx only, and refuses to activate on a server it cannot identify as nginx. WordPress works that out from `$_SERVER['SERVER_SOFTWARE']`, which your server chooses what to send — nginx sitting in front of Apache reports Apache, for instance. If you are on nginx and the check disagrees, return false from the `site_icon_fallback_require_nginx` filter in an mu-plugin.
+
 = Do I need to change my server configuration? =
 
-Usually no. Apache routes unknown paths to `index.php` through the rewrite block WordPress already writes, and the standard nginx recipe does the same with `try_files`. Site Health will tell you if yours doesn't, and give you the snippet.
+Usually no — the standard nginx recipe already routes unknown paths to `index.php` with `try_files`. Site Health will tell you if yours doesn't, and give you the snippet to add.
 
 = Does it redirect, or serve the image? =
 

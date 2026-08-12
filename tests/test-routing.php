@@ -25,7 +25,6 @@ function trailingslashit( $s ) { return rtrim( (string) $s, '/\\' ) . '/'; }
 function esc_url( $u ) { return $u; }
 function add_filter( ...$a ) {}
 function add_action( ...$a ) {}
-function register_activation_hook( ...$a ) {}
 function wp_upload_dir() {
 	return $GLOBALS['__uploads'];
 }
@@ -125,17 +124,19 @@ function get_site_icon_url( $size = 512, $url = '', $blog_id = 0 ) {
 	return $GLOBALS['__site_icon'];
 }
 
-// nginx, so the .htaccess paths stay inert and never require wp-admin includes.
-$GLOBALS['is_nginx']      = true;
-$GLOBALS['__multisite']   = false;
-$GLOBALS['__blog_id']     = 1;
-$GLOBALS['__site_options'] = [];
+// What the server reports, which is all core has to go on.
+$GLOBALS['is_nginx'] = true;
 
-function is_multisite() { return $GLOBALS['__multisite']; }
-function get_current_blog_id() { return $GLOBALS['__blog_id']; }
-function get_site_option( $k, $default = false ) { return $GLOBALS['__site_options'][ $k ] ?? $default; }
-function update_site_option( $k, $v ) { $GLOBALS['__site_options'][ $k ] = $v; return true; }
-function register_deactivation_hook( ...$a ) {}
+function register_activation_hook( ...$a ) {}
+function wp_kses( $s, $allowed ) { return $s; }
+
+// wp_die() ends the request in WordPress. Throwing models "execution stopped here" without
+// stopping the runner, which is the only way to assert that activation was refused.
+class Activation_Refused extends Exception {}
+
+function wp_die( $message = '', $title = '', $args = [] ) {
+	throw new Activation_Refused( is_string( $message ) ? $message : '' );
+}
 
 $base = dirname( __DIR__ ) . '/inc';
 require_once $base . '/namespace.php';
@@ -144,7 +145,6 @@ require_once $base . '/root-handler.php';
 require_once $base . '/icon-fetch.php';
 require_once $base . '/icon-stream.php';
 require_once $base . '/server-config.php';
-require_once $base . '/htaccess.php';
 require_once $base . '/lifecycle.php';
 require_once $base . '/site-health.php';
 
@@ -356,25 +356,19 @@ check( 'with no further request', $GLOBALS['__http_calls'], 2 );
 
 unlink( $dir . '/icon.png' );
 
-echo "\nApache rules\n";
-// try_files $uri in the nginx snippet means a real file at the web root still wins. The
-// Apache half has to agree, or activation silently stops serving a hand-placed favicon.ico.
-$rules     = SiteIconFallback\Server_Config\get_apache_rules();
-$rewrites  = array_keys( array_filter( $rules, fn( $l ) => str_starts_with( $l, 'RewriteRule' ) ) );
-$unguarded = array_filter( $rewrites, fn( $i ) => ( $rules[ $i - 1 ] ?? '' ) !== 'RewriteCond %{REQUEST_FILENAME} !-f' );
-
-check( 'both icon paths are routed', count( $rewrites ), 2 );
-check( 'every rewrite is guarded by a file-exists check', count( $unguarded ), 0 );
-
 echo "\nnginx snippet\n";
-// The request handler answers paths relative to the home URL, so on a subdirectory install
-// rules written against the domain root match paths this WordPress does not own — and the
-// try_files fallback points at whatever sits at the domain root instead of at this
-// install's index.php. The Apache half already derives its base from home_url().
+// The only server config the plugin generates. The request handler answers paths relative
+// to the home URL, so on a subdirectory install rules written against the domain root match
+// paths this WordPress does not own — and the try_files fallback points at whatever sits at
+// the domain root instead of at this install's index.php.
 $root_snippet = SiteIconFallback\Server_Config\get_nginx_snippet();
 
 check( 'root install is left alone', str_contains( $root_snippet, 'location ~ ^/apple-touch-icon' ), true );
 check( 'root install falls back to its own index.php', str_contains( $root_snippet, 'try_files $uri /index.php?$args;' ), true );
+
+// try_files $uri, not a bare rewrite: a real favicon.ico sitting at the web root has to
+// keep being served. This is the whole of the plugin's file-wins guarantee now.
+check( 'a real file still wins', substr_count( $root_snippet, 'try_files $uri' ), 2 );
 
 $GLOBALS['__home_url'] = 'https://example.com/blog/';
 $subdir_snippet        = SiteIconFallback\Server_Config\get_nginx_snippet();
@@ -436,8 +430,12 @@ check( 'nothing happens without WP_UNINSTALL_PLUGIN', trim( (string) shell_exec(
 
 $uninstalled = json_decode( (string) shell_exec( "php {$harness} run 2>&1" ), true );
 
-check( 'the active-site registry is removed', $uninstalled['site_options'] ?? null, [ SiteIconFallback\Lifecycle\ACTIVE_SITES_OPTION ] );
 check( 'the reachability transient is removed', $uninstalled['transients'] ?? null, [ SiteIconFallback\Site_Health\REACHABILITY_TRANSIENT ] );
+
+// The plugin registers no activation hook and owns no option. Everything it stores is a
+// transient, and this is what keeps that true — the harness still stubs delete_site_option,
+// so an option creeping back in shows up here rather than in someone's database.
+check( 'no options are deleted, because none are written', $uninstalled['site_options'] ?? null, [] );
 check( 'one query sweeps the cached bytes', count( $uninstalled['queries'] ?? [] ), 1 );
 
 // An underscore is a single-character wildcard in LIKE, and these key names are mostly
@@ -463,62 +461,36 @@ check( 'redirect cached briefly', SiteIconFallback\get_redirect_max_age(), 300 )
 check( 'redirect much shorter than content', SiteIconFallback\get_redirect_max_age() < SiteIconFallback\get_content_max_age(), true );
 check( 'missing cached briefly', SiteIconFallback\get_missing_max_age(), 300 );
 
-echo "\nLifecycle: single site\n";
-$GLOBALS['__multisite']    = false;
-$GLOBALS['__site_options'] = [];
-SiteIconFallback\Lifecycle\on_activation( false );
-check( 'single site keeps no registry', SiteIconFallback\Lifecycle\get_active_sites(), [] );
-SiteIconFallback\Lifecycle\on_deactivation( false );
-check( 'single site deactivates cleanly', SiteIconFallback\Lifecycle\get_active_sites(), [] );
+echo "\nActivation is gated on nginx\n";
+// Core fires the activation hook before it writes active_plugins, so a wp_die() here is the
+// whole mechanism — the plugin is simply never recorded as active.
 
-echo "\nLifecycle: multisite, per-site activation\n";
-$GLOBALS['__multisite']    = true;
-$GLOBALS['__site_options'] = [];
+/** Run on_activation() and report whether it refused. */
+function refused(): bool {
+	try {
+		SiteIconFallback\Lifecycle\on_activation();
+	} catch ( Activation_Refused $e ) {
+		return true;
+	}
 
-$GLOBALS['__blog_id'] = 2;
-SiteIconFallback\Lifecycle\on_activation( false );
-check( 'first site registers', SiteIconFallback\Lifecycle\get_active_sites(), [ 2 ] );
+	return false;
+}
 
-$GLOBALS['__blog_id'] = 3;
-SiteIconFallback\Lifecycle\on_activation( false );
-check( 'second site registers', SiteIconFallback\Lifecycle\get_active_sites(), [ 2, 3 ] );
+$GLOBALS['is_nginx'] = true;
+check( 'nginx activates', refused(), false );
 
-SiteIconFallback\Lifecycle\on_activation( false );
-check( 're-activating does not duplicate', SiteIconFallback\Lifecycle\get_active_sites(), [ 2, 3 ] );
+$GLOBALS['is_nginx'] = false;
+check( 'anything else is refused', refused(), true );
 
-$GLOBALS['__blog_id'] = 2;
-SiteIconFallback\Lifecycle\on_deactivation( false );
-check( 'one site left, rules must stay', SiteIconFallback\Lifecycle\get_active_sites(), [ 3 ] );
+// Detection reads a header the server chooses to send: nginx proxying to Apache reports
+// Apache, and a context with no SERVER_SOFTWARE reports nothing. Without a way out, a false
+// negative locks the install out of its own plugin permanently.
+$GLOBALS['__filters']['site_icon_fallback_require_nginx'] = false;
+check( 'the filter is a way past a wrong answer', refused(), false );
+unset( $GLOBALS['__filters']['site_icon_fallback_require_nginx'] );
 
-$GLOBALS['__blog_id'] = 3;
-SiteIconFallback\Lifecycle\on_deactivation( false );
-check( 'last site out empties the registry', SiteIconFallback\Lifecycle\get_active_sites(), [] );
-
-echo "\nLifecycle: multisite, network activation\n";
-$GLOBALS['__site_options'] = [];
-SiteIconFallback\Lifecycle\on_activation( true );
-check( 'network activation keeps no registry', SiteIconFallback\Lifecycle\get_active_sites(), [] );
-$GLOBALS['__site_options'][ SiteIconFallback\Lifecycle\ACTIVE_SITES_OPTION ] = [ 4, 5 ];
-SiteIconFallback\Lifecycle\on_deactivation( true );
-check( 'network deactivation clears the registry', SiteIconFallback\Lifecycle\get_active_sites(), [] );
-$GLOBALS['__multisite'] = false;
-
-echo "\nMarker block removal\n";
-$tmp = sys_get_temp_dir() . '/sif-htaccess-test';
-$other = "# BEGIN WordPress\nRewriteEngine On\n# END WordPress";
-file_put_contents( $tmp, $other . "\n# BEGIN Site Icon Fallback\nRewriteRule ^favicon\.ico$ index.php [L]\n# END Site Icon Fallback\ntrailing config\n" );
-check( 'removes the block', SiteIconFallback\Htaccess\remove_marker_block( $tmp, 'Site Icon Fallback' ), true );
-$after = file_get_contents( $tmp );
-check( 'our markers are gone', str_contains( $after, 'Site Icon Fallback' ), false );
-check( "core's block survives", str_contains( $after, '# BEGIN WordPress' ), true );
-check( 'content after the block survives', str_contains( $after, 'trailing config' ), true );
-check( 'second removal reports nothing found', SiteIconFallback\Htaccess\remove_marker_block( $tmp, 'Site Icon Fallback' ), false );
-check( 'missing file reports false', SiteIconFallback\Htaccess\remove_marker_block( $tmp . '-nope', 'Site Icon Fallback' ), false );
-
-file_put_contents( $tmp, "  # BEGIN Site Icon Fallback\nrule\n  # END Site Icon Fallback\nkeep\n" );
-check( 'indented markers still matched', SiteIconFallback\Htaccess\remove_marker_block( $tmp, 'Site Icon Fallback' ), true );
-check( 'indented removal leaves the rest', trim( (string) file_get_contents( $tmp ) ), 'keep' );
-unlink( $tmp );
+check( 'and the gate closes again after it', refused(), true );
+$GLOBALS['is_nginx'] = true;
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail === 0 ? 0 : 1 );
