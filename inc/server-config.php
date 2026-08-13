@@ -2,12 +2,8 @@
 /**
  * The nginx configuration needed where the web server answers root paths itself.
  *
- * Generated only, for a human or a deploy to place: nginx has no per-directory
- * configuration a plugin could write, so Site Health prints this and stops there.
- *
- * nginx is the only server this generates for. Apache needs nothing — core's own .htaccess
- * block already sends non-existent paths to index.php, which is exactly what this asks
- * nginx to do.
+ * Generated only, never written: nginx has no per-directory config a plugin could write.
+ * Apache needs nothing — core's .htaccess already sends non-existent paths to index.php.
  *
  * @package SiteIconFallback
  */
@@ -21,10 +17,9 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Whether the site is served by nginx.
  *
- * Core sets $is_nginx from a substring match on $_SERVER['SERVER_SOFTWARE']
- * (wp-includes/vars.php), which is reliable when nginx talks to PHP-FPM directly and wrong
- * where nginx proxies to Apache — that reports Apache. Activation depends on this answer,
- * so the gate around it is filterable. See Lifecycle\nginx_is_required().
+ * Core derives $is_nginx from SERVER_SOFTWARE, which is wrong where nginx proxies to
+ * Apache. Activation depends on this, so the gate around it is filterable — see
+ * Lifecycle\nginx_is_required().
  *
  * @return bool
  */
@@ -37,14 +32,9 @@ function is_nginx(): bool {
 /**
  * What the server called itself, if anything did.
  *
- * There is a difference between a server saying it is not nginx and no server saying
- * anything, and only this tells them apart. Core erases it: wp_fix_server_vars() defaults
- * SERVER_SOFTWARE to '' (wp-includes/load.php) before $is_nginx is derived, so both cases
- * arrive as `false`.
- *
- * WP-CLI is the case that matters. It sets four $_SERVER keys and SERVER_SOFTWARE is not
- * among them, so every scripted `wp plugin activate` looks exactly like a request served by
- * the wrong web server.
+ * Distinguishes "not nginx" from "nothing answered", which core collapses into the same
+ * $is_nginx === false. WP-CLI is the case that matters: it never sets SERVER_SOFTWARE.
+ * See CLAUDE.md: "'Not nginx' and 'nothing answered' are different."
  *
  * @return string Empty when nothing identified itself.
  */
@@ -73,9 +63,8 @@ function get_home_root(): string {
 /**
  * nginx configuration routing root icon paths to WordPress.
  *
- * Read from the bundled nginx.conf.example rather than duplicated here, so that what
- * Site Health tells you to paste and what bin/install-nginx-config.sh writes cannot
- * drift apart.
+ * Read from the bundled nginx.conf.example rather than duplicated here, so Site Health and
+ * bin/install-nginx-config.sh cannot drift apart.
  *
  * @return string
  */
@@ -89,11 +78,9 @@ function get_nginx_snippet(): string {
 /**
  * Rebase a snippet written for a root install onto this install's own path.
  *
- * The bundled file is written for the common case, so that it stays valid nginx and can be
- * pasted or installed as it is. A subdirectory install needs both halves moved: the
- * location patterns, which otherwise match paths this WordPress does not own, and the
- * try_files fallback, which otherwise points at whatever sits at the domain root instead of
- * at this install's index.php.
+ * A subdirectory install needs both halves moved: the location patterns, and the try_files
+ * fallback, which otherwise points at whatever sits at the domain root.
+ * See CLAUDE.md: "Server config is rooted at home_url(), not at /."
  *
  * @param string $snippet Config written against '/'.
  * @return string Config rooted at this install's home path.

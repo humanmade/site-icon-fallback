@@ -29,9 +29,8 @@ function is_running(): bool {
 /**
  * Warn the operator, when there is one listening.
  *
- * A no-op in a web request. Activation has no channel for a warning there — the admin gets
- * either the plugin or wp_die() — so this exists for the path where the plugin activates
- * without having confirmed the server.
+ * A no-op in a web request, where activation has no channel for a warning. Exists for the
+ * path where the plugin activates without having confirmed the server.
  *
  * @param string $message Warning text.
  * @return void
@@ -96,9 +95,8 @@ function register_commands(): void {
 /**
  * Report what the plugin can and cannot do on this install.
  *
- * The questions a deploy needs answered, in the place a deploy can ask them: is there an
- * icon to serve, and does anything reach PHP to serve it. Site Health answers the same two
- * in a browser, which is no use to a pipeline.
+ * Answers the two questions a deploy needs: is there an icon to serve, and does anything
+ * reach PHP to serve it. Site Health answers the same two, but only in a browser.
  *
  * @param array<int, string>    $args       Positional arguments.
  * @param array<string, string> $assoc_args Flags and options.
@@ -152,9 +150,8 @@ function status_command( array $args, array $assoc_args = [] ): void {
 /**
  * Print the nginx rules for this install.
  *
- * Same snippet Site Health shows, rooted at this install's home path, so a subdirectory
- * install gets rules that match the paths it actually owns. Piping this into a config file
- * is the remote-host equivalent of bin/install-nginx-config.sh.
+ * Same snippet Site Health shows, rooted at this install's home path. Piping it into a
+ * config file is the remote-host equivalent of bin/install-nginx-config.sh.
  *
  * @return void
  */

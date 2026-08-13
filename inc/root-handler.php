@@ -24,10 +24,8 @@ const FAVICON_PATTERN = '#^favicon\.(?:ico|png)$#';
 /**
  * Answer a root icon request from the Site Icon.
  *
- * Hooked late on `init` rather than on `template_redirect`: late enough that media and
- * CDN URL filters have registered, early enough that an icon request never runs the main
- * query. Deliberately not a rewrite rule, because rewrite rules need a flush to take
- * effect and a deploy cannot be relied on to perform one.
+ * Hooked late on `init`: after media and CDN URL filters register, before the main query
+ * runs. See CLAUDE.md: "Path matching on init:100, not a rewrite rule."
  *
  * @return void
  */
@@ -83,9 +81,8 @@ function get_request_path(): string {
 /**
  * Resolve the icon size for a matched apple-touch-icon request.
  *
- * A filename carrying dimensions must be square and must name a supported size. Anything
- * else is refused, so that a request for apple-touch-icon-9999x9999.png cannot be used to
- * drive image generation.
+ * A filename carrying dimensions must be square and name a supported size, so that
+ * apple-touch-icon-9999x9999.png cannot drive image generation.
  *
  * @param array<int, string> $matches Matches produced by TOUCH_ICON_PATTERN.
  * @return int Size in pixels, or 0 when the request should be refused.
@@ -125,8 +122,7 @@ function serve_icon( int $size ): void {
 			Icon_Stream\send_icon_bytes( $icon );
 		}
 
-		// Reading the bytes failed. Falling through to a redirect still gets the client
-		// to an icon, which beats refusing one for the sake of consistency.
+		// Reading the bytes failed; a redirect still gets the client to an icon.
 	}
 
 	send_icon_redirect( $url );
@@ -142,9 +138,8 @@ function get_serve_mode(): string {
 	 * Filters how root icon requests are answered.
 	 *
 	 * 'stream' returns the image bytes with a 200, so clients that do not follow
-	 * redirects still get an icon — nothing guarantees an icon fetcher follows one.
-	 * 'redirect' sends a 302 instead, which costs no PHP time on a cache miss but
-	 * assumes the client follows it.
+	 * redirects still get an icon. 'redirect' sends a 302, which costs no PHP time
+	 * but assumes the client follows it.
 	 *
 	 * @param string $mode Either 'stream' or 'redirect'.
 	 */
@@ -156,10 +151,8 @@ function get_serve_mode(): string {
 /**
  * Redirect to the Site Icon and stop.
  *
- * A 302 rather than a 301, and cached only briefly. Both matter for the same reason: this
- * response is a pointer, and changing the Site Icon deletes what it points at. A 301, or a
- * 302 held as long as the icon itself, leaves clients replaying a redirect into a 404
- * until their cache expires.
+ * A 302, cached briefly. Changing the Site Icon deletes what this points at, so anything
+ * longer-lived leaves clients replaying a redirect into a 404.
  *
  * @param string $url Site Icon URL.
  * @return void
@@ -178,8 +171,8 @@ function send_icon_redirect( string $url ): void {
 /**
  * Send a 404 for an icon that cannot be supplied.
  *
- * Deliberately not core's do_favicon() behaviour, which falls back to the WordPress logo.
- * A site with no Site Icon set should look like it has no icon, not like WordPress.
+ * Not core's do_favicon() behaviour, which falls back to the WordPress logo. A site with
+ * no Site Icon should look like it has no icon, not like WordPress.
  *
  * @return void
  */

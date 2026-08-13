@@ -38,12 +38,9 @@ const FETCH_FAILED = 'failed';
 /**
  * Content types this plugin is willing to serve.
  *
- * These bytes go out under a .png or .ico URL, from the site's own origin, and are held
- * for a day. A closed list is what stops two things being laundered through that: an image
- * CDN's 200 HTML error page, which would otherwise be cached and echoed as text/html; and
- * an SVG Site Icon, which a browser will run script from on direct navigation. Anything
- * not listed here falls through to a redirect, which at least points at the real file
- * under its own name.
+ * A closed list keeps out an image CDN's HTML error page and an SVG Site Icon a browser
+ * would run script from. Anything else falls through to a redirect.
+ * See CLAUDE.md: "Content types are allow-listed too."
  */
 const ALLOWED_TYPES = [
 	'image/png',
@@ -59,8 +56,8 @@ const ALLOWED_TYPES = [
 /**
  * Leading bytes that identify an image format, for responses that declare no type.
  *
- * Every value here is already in ALLOWED_TYPES, which is what keeps this from widening what
- * may be served: recognising the bytes can name a type, never admit a new one.
+ * Every value here is already in ALLOWED_TYPES, so recognising bytes can name a type but
+ * never admit a new one.
  */
 const TYPE_SIGNATURES = [
 	"\x89PNG\r\n\x1a\n" => 'image/png',
@@ -74,9 +71,8 @@ const TYPE_SIGNATURES = [
 /**
  * The icon at a URL, as bytes plus content type.
  *
- * Reads from disk when the URL maps into the uploads directory, and falls back to an HTTP
- * request when it does not — which is the case on any install where a CDN or an image
- * service rewrites the URL away from the local path.
+ * Reads from disk when the URL maps into the uploads directory, and falls back to HTTP
+ * when it does not — the case wherever a CDN or image service rewrites the URL.
  *
  * @param string $url Site Icon URL.
  * @return array{body: string, type: string}|null Null when the icon could not be read.
@@ -89,9 +85,8 @@ function fetch_icon( string $url ): ?array {
 		return $cached;
 	}
 
-	// A remembered failure. Retrying on every request is what turns a slow or unreachable
-	// icon host into a blocking three-second wait per probe, on the one code path built
-	// for bot traffic.
+	// A remembered failure. Retrying every request turns a slow icon host into a blocking
+	// three-second wait per probe, on the one code path built for bot traffic.
 	if ( $cached === FETCH_FAILED ) {
 		return null;
 	}
@@ -137,10 +132,9 @@ function read_local_icon( string $url ): ?array {
 		return null;
 	}
 
-	// Checked before the read, not after it. The point of the cap is to not pull a
-	// multi-megabyte original into memory in the first place, and this is the path that
-	// reaches it: a Site Icon set with `wp option update site_icon <id>` never generates
-	// the site_icon-* derivatives, so the URL resolves to the full-size upload.
+	// Checked before the read, so an oversized original is never pulled into memory. A Site
+	// Icon set with `wp option update site_icon <id>` generates no derivatives, so the URL
+	// resolves to the full-size upload.
 	$bytes = filesize( $file );
 
 	if ( $bytes === false || $bytes > MAX_ICON_BYTES ) {
@@ -171,9 +165,8 @@ function read_local_icon( string $url ): ?array {
 /**
  * The content type to serve for a declared type, or null when it is not one we will serve.
  *
- * Compares the media type alone: parameters carry no bearing on what the bytes are, and
- * the type itself is case-insensitive, so `IMAGE/PNG; charset=binary` is the same claim as
- * `image/png`.
+ * Compares the media type alone, case-insensitively: `IMAGE/PNG; charset=binary` is the
+ * same claim as `image/png`.
  *
  * @param string $declared Content-Type header value, or a type from wp_check_filetype().
  * @return string|null Null when the type is not in ALLOWED_TYPES.
@@ -187,13 +180,9 @@ function get_servable_type( string $declared ): ?string {
 /**
  * The content type a body's own leading bytes identify it as.
  *
- * Only consulted where a response declares no type at all, which is not the same claim as
- * declaring one this plugin refuses. Altis Tachyon answers with a 200, the real image, and
- * no Content-Type header; refusing that costs the byte path on every install behind it.
- *
- * Nothing the allow-list exists to keep out survives this. An image service's HTML error
- * page carries no image signature, and neither does an SVG, so both still come back null and
- * fall through to a redirect.
+ * Consulted only when a response declares no type at all — some image services return the
+ * bytes with no Content-Type header. See CLAUDE.md: "A response that declares no type is
+ * sniffed, not refused."
  *
  * @param string $body Response body.
  * @return string|null Null when the bytes match no format we will serve.
@@ -205,9 +194,8 @@ function sniff_type( string $body ): ?string {
 		}
 	}
 
-	// RIFF and ISO base media are container formats that name what they hold in a later
-	// field, so a signature compared at byte zero cannot tell a WebP from a WAV or an AVIF
-	// from any other MP4-family file.
+	// Both are container formats naming their contents in a later field, so a signature
+	// compared at byte zero cannot tell a WebP from a WAV, or an AVIF from any other MP4.
 	if ( str_starts_with( $body, 'RIFF' ) && substr( $body, 8, 4 ) === 'WEBP' ) {
 		return 'image/webp';
 	}
@@ -222,9 +210,8 @@ function sniff_type( string $body ): ?string {
 /**
  * Fetch the icon over HTTP.
  *
- * Asks for PNG explicitly. Image services commonly content-negotiate on Accept and will
- * hand back WebP to anything that offers it, which is not what a client asking for a .png
- * expects — and some icon fetchers discard it.
+ * Asks for PNG explicitly: image services content-negotiate on Accept and will return
+ * WebP under a .png URL to anything that offers it.
  *
  * @param string $url Site Icon URL.
  * @return array{body: string, type: string}|null Null when the request failed.
@@ -235,10 +222,8 @@ function request_icon( string $url ): ?array {
 		$url,
 		[
 			'timeout'             => 3,
-			// One byte over the cap, not the cap itself. This truncates the body rather
-			// than erroring, so a response stopped exactly at the cap would be
-			// indistinguishable from one that fits; the extra byte is what makes an
-			// oversized body recognisable as oversized below.
+			// One byte over the cap: this truncates rather than errors, so a body stopped
+			// exactly at the cap would look like one that fits.
 			'limit_response_size' => MAX_ICON_BYTES + 1,
 			'headers'             => [ 'Accept' => 'image/png,image/*;q=0.8' ],
 		]
