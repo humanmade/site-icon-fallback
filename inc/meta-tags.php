@@ -17,22 +17,17 @@ defined( 'ABSPATH' ) || exit;
  * Sizes considered for the page head.
  *
  * Every current iOS device maps to one of these. The legacy sizes in SUPPORTED_SIZES are
- * still answered at the root but not declared here: they exist for pre-iOS 7 hardware,
- * and a link tag costs bytes in the head of every page whereas a root path costs nothing
- * until something asks for it.
- *
- * These are candidates rather than guarantees. Any that resolve to the same image are
- * collapsed into one tag — see get_declarable_icons().
+ * still answered at the root but not declared here, since a link tag costs bytes on every
+ * page. Sizes resolving to the same image are collapsed — see get_declarable_icons().
  */
 const DECLARED_SIZES = [ 120, 152, 167, 180 ];
 
 /**
  * Replace core's single bare apple-touch-icon tag with a sized set.
  *
- * Core emits one <link rel="apple-touch-icon"> carrying no sizes attribute, so a client
- * after a specific size has no exact match to choose and downscales the 180 instead.
- * Declaring each size gives it one. This runs on any host with no server configuration,
- * which is the half of the problem that does not depend on requests reaching PHP.
+ * Core emits one <link rel="apple-touch-icon"> with no sizes attribute, so a client after
+ * a specific size has no exact match and downscales the 180 instead. Works on any host,
+ * with no server configuration.
  *
  * @param string[] $meta_tags Tags core is about to output.
  * @return string[] Filtered tags.
@@ -63,18 +58,12 @@ function filter_meta_tags( array $meta_tags ): array {
 /**
  * The sizes worth declaring, mapped to their icon URL.
  *
- * WordPress only generates four Site Icon derivatives — 270, 192, 180 and 32 — and
- * resolves any other request to the smallest generated size at least as large, while
- * reporting back the dimensions that were asked for. Ask it for 120, 152, 167 and 180 on
- * an install with no image service and all four hand back the same 180x180 file, which
- * would put four tags in the head claiming four sizes for one image.
+ * Core generates only four Site Icon derivatives, so without an image service several
+ * requested sizes hand back the same file. Grouping by URL declares each image once.
+ * See CLAUDE.md: "Declared sizes are deduplicated by URL."
  *
- * Grouping by URL avoids that without needing to know whether an image service is in
- * play: where each size yields a distinct derivative they are all declared, and where
- * they collapse onto one file it is declared once. Sizes are walked in ascending order so
- * the size kept for each image is the largest that resolved to it, which is the closest
- * any of them get to the real dimensions — and never larger, since a resolved derivative
- * is always at least the size requested.
+ * Sizes are walked in ascending order, so the size kept for each image is the largest that
+ * resolved to it.
  *
  * @param array<int, int|string> $sizes Requested square sizes in pixels.
  * @return array<int, string> Size in pixels mapped to icon URL.

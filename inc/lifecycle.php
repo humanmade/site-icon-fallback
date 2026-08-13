@@ -17,16 +17,10 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Refuse to activate on a server that reports itself as something other than nginx.
  *
- * The plugin generates nginx configuration and nothing else, so on another server it can
- * offer no answer to the one problem it exists to report. Failing at activation says so
- * once, in front of the person who can act on it, rather than leaving a plugin that looks
- * installed and silently is not the thing they wanted.
- *
- * wp_die() here is enough on its own: core fires this hook before it writes the plugin into
- * the active_plugins option (wp-admin/includes/plugin.php), so stopping here means the
- * plugin is never recorded as active. There is nothing to undo.
- *
- * Never fires for a plugin loaded from mu-plugins, where activation does not exist.
+ * The plugin only generates nginx configuration, so elsewhere it can do nothing about the
+ * problem it reports. wp_die() is the whole mechanism: core fires this hook before writing
+ * active_plugins, so there is nothing to undo. Never runs from mu-plugins.
+ * See CLAUDE.md: "Activation is refused when the server reports itself as non-nginx."
  *
  * @return void
  */
@@ -35,11 +29,9 @@ function on_activation(): void {
 		return;
 	}
 
-	// Nothing identified itself, so nothing has contradicted us either. This is WP-CLI,
-	// where SERVER_SOFTWARE is never set and every scripted activation would otherwise look
-	// identical to activation on the wrong server. Refusing here would mean no deploy could
-	// ever install this plugin, which is a worse failure than activating on a server we have
-	// not confirmed — Site Health still reports the truth once real requests arrive.
+	// Nothing identified itself: this is WP-CLI, which never sets SERVER_SOFTWARE. Refusing
+	// here would block every scripted deploy, and Site Health still reports the truth once
+	// real requests arrive.
 	if ( Server_Config\get_server_software() === '' ) {
 		CLI\warn(
 			__( 'Site Icon Fallback supports nginx only. No web server was available to check against, so activation went ahead — run `wp site-icon-fallback status` against the live site to confirm it works.', 'site-icon-fallback' )
@@ -65,9 +57,8 @@ function on_activation(): void {
 /**
  * Whether activation is gated on nginx being detected.
  *
- * The escape hatch for the detection being wrong. Core has no reliable answer for what is
- * in front of PHP — it reads a header the server chooses to send — so an install that knows
- * better must be able to say so, rather than being locked out by a missing string.
+ * Detection reads a header the server chooses to send, and nginx proxying to Apache reports
+ * Apache. Without this filter, a wrong answer locks an install out of its own plugin.
  *
  * @return bool
  */
