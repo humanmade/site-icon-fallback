@@ -52,6 +52,8 @@ Change these only with the reasoning in mind — each one exists because the obv
 
 **HTTP fetches send `Accept: image/png`.** Image services content-negotiate on `Accept` and will return WebP under a `.png` URL to anything that offers it.
 
+**`get_site_icon_url()` does not always return a string.** It hands back whatever `wp_get_attachment_image_url()` returned, which is `false` when the `site_icon` option names an attachment that no longer exists — and nothing reliably clears that option, because the hook that would (`WP_Site_Icon::delete_attachment_data`) is registered only inside one admin AJAX action. A `get_site_icon_url` filter may return anything at all, which is why core's own callers test the result for truthiness rather than comparing it to `''`. Comparing `=== ''` therefore lets `false` past the guard, and passing it into a string parameter under `strict_types` is a fatal on the one code path built for anonymous traffic. `get_icon_url()` normalises it in one place so no caller has to.
+
 **Marker header `X-Site-Icon-Fallback`.** A 404 alone is ambiguous — it is what the web server sends when it never routed the request *and* what this plugin sends when there is no icon. Only the header distinguishes them, and Site Health depends on it.
 
 **nginx only, and the plugin writes nothing.** Apache is not generated for, because Apache needs nothing: core's own `.htaccess` block already sends non-existent paths to `index.php`, which is precisely what the nginx snippet asks nginx to do. The plugin previously wrote its own `.htaccess` block for the narrow case of a host that had gutted core's rewrite rules — that cost `htaccess.php`, a multisite active-site registry and a network option, to automate four lines on the one platform where automation was least needed. nginx, where requests genuinely do not reach PHP, has no per-directory config a plugin could write at all. So there is no deactivation hook, nothing is ever written to disk, and the plugin owns no options.
@@ -94,6 +96,7 @@ Change these only with the reasoning in mind — each one exists because the obv
 - **One concern per file, and the tell is the word "and".** A file whose description needs one is two files. `icon-fetch.php` gets the icon's bytes and `icon-stream.php` emits them; the dependency points one way, and the caller imports both (`Icon_Fetch\fetch_icon()`, then `Icon_Stream\send_icon_bytes()`).
 - Length is the symptom, not the rule. Past roughly 200 lines, look for the seam — but don't cut where there isn't one. `icon-fetch.php` is 218 lines of a single concern, and pulling `ALLOWED_TYPES` out would only separate the allow-list from its two callers.
 - Comments explain *why*, particularly where a simpler-looking alternative is wrong.
+- **Docblocks stay short: summary line, at most three lines of rationale, then the tags.** The *why* still belongs at the code, but a reader after the signature should not have to parse an essay to reach it. Reasoning that needs more room goes in the "Decisions that are load-bearing" section above, with a one-line pointer at the code — `See CLAUDE.md: "Content types are allow-listed too."` One copy of an argument cannot drift from the other.
 
 ## Commands
 

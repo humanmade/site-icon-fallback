@@ -14,12 +14,9 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Warn when there is no Site Icon for the plugin to serve.
  *
- * Not dismissible, and deliberately so: without a Site Icon every root icon request
- * returns a 404, which means the plugin is doing nothing at all. The notice disappears
- * the moment an icon is set, so it cannot outstay the problem it describes.
- *
- * Site Icons are per-site on multisite, so this hangs off admin_notices rather than
- * network_admin_notices — the network admin has no Site Icon of its own to set.
+ * Not dismissible: without a Site Icon every root icon request returns a 404, and the
+ * notice disappears as soon as one is set. Hooked to admin_notices rather than
+ * network_admin_notices, since Site Icons are per-site on multisite.
  *
  * @return void
  */

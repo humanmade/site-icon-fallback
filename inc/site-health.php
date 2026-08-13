@@ -20,11 +20,8 @@ const REACHABILITY_TRANSIENT = 'site_icon_fallback_reachable';
 /**
  * Identifier for the test, and the tail of its Ajax action.
  *
- * Deliberately carries no underscores. Site Health's JavaScript builds the action name as
- * `'health-check-' + test.replace( '_', '-' )`, and a string argument to replace() swaps
- * only the first match — so `site_icon_fallback_root` would ask for
- * `health-check-site-icon_fallback_root`. Core's own async tests each happen to contain a
- * single underscore, which is why nothing in core trips over it.
+ * Carries no underscores: Site Health's JavaScript replaces only the first one when it
+ * builds the Ajax action. See CLAUDE.md: "The Site Health test is async."
  */
 const TEST_SLUG = 'site-icon-fallback-root';
 
@@ -34,14 +31,9 @@ const AJAX_ACTION = 'health-check-' . TEST_SLUG;
 /**
  * Register the Site Health test.
  *
- * Registered as async, not direct. Direct tests are run inline while the Site Health page
- * renders, and this one makes a loopback HTTP request with a three-second timeout — core
- * registers its own loopback test as async for exactly that reason. The transient bounds
- * how often the request happens but not what it costs when it does.
- *
- * async_direct_test is what the weekly cron run uses. Without it, cron posts the raw test
- * slug to admin-ajax as the action name rather than the prefixed one the browser sends,
- * so the test would report itself unavailable on every scheduled run.
+ * Async, not direct: this makes a loopback request with a three-second timeout, and direct
+ * tests run inline while the Site Health page renders. async_direct_test is what the weekly
+ * cron run needs. See CLAUDE.md: "The Site Health test is async."
  *
  * @param array<string, array<string, mixed>> $tests Registered tests.
  * @return array<string, array<string, mixed>> Filtered tests.
@@ -74,9 +66,8 @@ function ajax_reachability_test(): void {
 /**
  * Report whether the root handler is reachable and has an icon to serve.
  *
- * Two independent things can be wrong and they need different fixes, so they are reported
- * separately: the web server may never pass these paths to PHP, or it may pass them
- * through to a site that has no Site Icon set.
+ * Two things can be wrong and need different fixes, so they are reported separately: the
+ * web server may never pass these paths to PHP, or there may be no Site Icon set.
  *
  * @return array<string, mixed> Site Health result.
  */
@@ -133,9 +124,8 @@ function run_reachability_test(): array {
 /**
  * Whether a root icon request is answered by this plugin.
  *
- * Checks for our marker header rather than the status code. A 404 alone is ambiguous:
- * it is what the web server sends when it never routed the request, and also what this
- * plugin sends when there is no icon to serve. Only the header distinguishes them.
+ * Checks for our marker header, not the status code: a 404 could be the web server never
+ * routing the request, or this plugin reporting no icon.
  *
  * @return bool
  */
