@@ -14,7 +14,7 @@ Two independent layers. Layer 1 works everywhere unaided; Layer 2 needs requests
 
 | File | Responsibility |
 | --- | --- |
-| `plugin.php` | Header, `VERSION`, requires, calls `bootstrap()` |
+| `site-icon-fallback.php` | Header, `VERSION`, requires, calls `bootstrap()` |
 | `inc/namespace.php` | Hook wiring, supported sizes, cache lifetimes |
 | `inc/meta-tags.php` | **Layer 1** — sized `apple-touch-icon` tags via `site_icon_meta_tags` |
 | `inc/root-handler.php` | **Layer 2** — path matching, size resolution, response dispatch |
@@ -90,7 +90,7 @@ Change these only with the reasoning in mind — each one exists because the obv
 - Named functions in hooks, never closures — a closure cannot be unhooked.
 - Type hints on parameters and returns.
 - Text domain `site-icon-fallback`, matching the slug.
-- `defined( 'ABSPATH' ) || exit;` after the namespace and any `use` imports, in every file. `plugin.php` keeps the `if` form the plugin-header convention uses.
+- `defined( 'ABSPATH' ) || exit;` after the namespace and any `use` imports, in every file. `site-icon-fallback.php` keeps the `if` form the plugin-header convention uses.
 - **One concern per file, and the tell is the word "and".** A file whose description needs one is two files. `icon-fetch.php` gets the icon's bytes and `icon-stream.php` emits them; the dependency points one way, and the caller imports both (`Icon_Fetch\fetch_icon()`, then `Icon_Stream\send_icon_bytes()`).
 - Length is the symptom, not the rule. Past roughly 200 lines, look for the seam — but don't cut where there isn't one. `icon-fetch.php` is 218 lines of a single concern, and pulling `ALLOWED_TYPES` out would only separate the allow-list from its two callers.
 - Comments explain *why*, particularly where a simpler-looking alternative is wrong.
@@ -100,7 +100,7 @@ Change these only with the reasoning in mind — each one exists because the obv
 | Command | What it does |
 | --- | --- |
 | `composer install` | Installs `humanmade/coding-standards` (the only dependency) |
-| `composer phpcs` | Lints `inc/`, `plugin.php` and `uninstall.php` against the HM standard via `.phpcs.xml` |
+| `composer phpcs` | Lints `inc/`, `site-icon-fallback.php` and `uninstall.php` against the HM standard via `.phpcs.xml` |
 | `composer phpcbf` | Auto-fixes what phpcs can |
 | `npm test` | Runs both suites below |
 | `npm run test:php` | `tests/test-routing.php` — plain PHP, no WordPress bootstrap |

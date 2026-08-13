@@ -86,7 +86,7 @@ The three short lifetimes are deliberately far below the content one. Each point
 
 ```sh
 composer install     # phpcs and the Human Made coding standards
-composer phpcs       # lint inc/, plugin.php and uninstall.php
+composer phpcs       # lint inc/, site-icon-fallback.php and uninstall.php
 npm test             # both test suites
 npm run env:start    # wp-env on port 3031
 ```

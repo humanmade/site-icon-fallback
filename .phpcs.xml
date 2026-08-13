@@ -4,7 +4,7 @@
 
 	<!-- What to scan -->
 	<file>./inc/</file>
-	<file>plugin.php</file>
+	<file>site-icon-fallback.php</file>
 	<file>uninstall.php</file>
 
 	<exclude-pattern>./vendor/</exclude-pattern>
@@ -46,7 +46,7 @@
 	file, and uninstall.php in the directory beside it. Neither can move into inc/.
 	-->
 	<rule ref="HM.Files.NamespaceDirectoryName.NoIncDirectory">
-		<exclude-pattern>plugin.php</exclude-pattern>
+		<exclude-pattern>site-icon-fallback.php</exclude-pattern>
 		<exclude-pattern>uninstall.php</exclude-pattern>
 	</rule>
 </ruleset>
