@@ -14,7 +14,7 @@ define( 'ABSPATH', '/tmp/' );
 define( 'KB_IN_BYTES', 1024 );
 
 if ( ( $argv[1] ?? '' ) === 'run' ) {
-	define( 'WP_UNINSTALL_PLUGIN', 'site-icon-fallback/plugin.php' );
+	define( 'WP_UNINSTALL_PLUGIN', 'site-icon-fallback/site-icon-fallback.php' );
 }
 
 $GLOBALS['__deleted'] = [
