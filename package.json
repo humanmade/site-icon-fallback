@@ -3,6 +3,7 @@
 	"private": true,
 	"description": "A lightweight fallback that serves your Site Icon from the site root, reducing 404s.",
 	"scripts": {
+		"check:version": "bash .github/check-version-bump.sh",
 		"env:cli": "npx @wordpress/env run cli",
 		"env:db": "npx @wordpress/env run cli -- mysql -uroot -ppassword wordpress --host=mysql",
 		"env:destroy": "npx @wordpress/env destroy",
@@ -12,8 +13,8 @@
 		"format": "wp-scripts format",
 		"lint:php": "composer phpcs",
 		"test": "npm run test:php && npm run test:sh",
-		"test:php": "php tests/test-routing.php",
-		"test:sh": "bash tests/test-nginx-installer.sh && bash tests/test-strip-dev-files.sh"
+		"test:php": "php tests/test-routing.php && php tests/test-version.php",
+		"test:sh": "bash tests/test-nginx-installer.sh && bash tests/test-strip-dev-files.sh && bash tests/test-version-bump.sh"
 	},
 	"author": "Human Made Limited",
 	"license": "GPL-2.0-or-later",
