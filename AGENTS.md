@@ -102,6 +102,51 @@ Change these only with the reasoning in mind — each one exists because the obv
 - Comments explain *why*, particularly where a simpler-looking alternative is wrong.
 - **Docblocks stay short: summary line, at most three lines of rationale, then the tags.** The *why* still belongs at the code, but a reader after the signature should not have to parse an essay to reach it. Reasoning that needs more room goes in the "Decisions that are load-bearing" section above, with a one-line pointer at the code — `See CLAUDE.md: "Content types are allow-listed too."` One copy of an argument cannot drift from the other.
 
+## Versioning
+
+**Bump the version once per branch, on the first change that ships — then never again on that branch.**
+
+Four places carry it and all four move together:
+
+| Where | Form |
+| --- | --- |
+| `site-icon-fallback.php:5` | ` * Version:           x.y.z` |
+| `site-icon-fallback.php:23` | `const VERSION = 'x.y.z';` |
+| `readme.txt:7` | `Stable tag: x.y.z` |
+| `readme.txt` changelog | a new `= x.y.z =` heading |
+
+**Whether this branch has bumped already is answered by git, not by memory.** Read the version off `main` and compare:
+
+```
+git show main:site-icon-fallback.php | sed -n 's/^ \* Version: *//p'
+```
+
+Equal to the working tree means this branch has not bumped yet, so bump now and add the changelog heading. Different means the bump already happened on this branch — add to the existing changelog entry rather than opening a second one, and leave all four numbers alone. This is what keeps a five-commit branch from arriving at 0.1.5. Never bump on `main` itself: branch first, per the global protocol.
+
+**A change that ships nothing gets no bump.** `.gitattributes` already defines what ships, so the question is decidable rather than a judgement call — if every changed path is `export-ignore`d (`tests/`, `.github/`, `AGENTS.md`, `docs/`, tooling config), the distributed plugin is byte-identical and there is no new version to name. Release tooling and test changes are the common case here.
+
+**Do not answer that from `git diff main...HEAD`.** It reports only what is already on the branch as a commit, and a branch under review has modified and untracked work at the same time — the answer it gives is "nothing changed", which reads as "nothing ships" and is wrong in the direction of not bumping. Three sources or none:
+
+```
+{ git diff --name-only main...HEAD;             # already on the branch
+  git diff --name-only HEAD;                    # modified, not yet recorded
+  git ls-files --others --exclude-standard; }   # new, untracked
+```
+
+Classify each result with `git check-attr export-ignore`, **walking up the parents too** — `/tests` does not match `tests/foo.php`, the same trap `strip-dev-files.sh` exists for. `npm run check:version` does all of this; run it rather than reimplementing it.
+
+Patch for fixes, minor for new behaviour, major for a break.
+
+**Three gates enforce this, and each catches what the others cannot.**
+
+| Gate | Catches |
+| --- | --- |
+| `.github/check-version-bump.sh` (PR) | A shipping change that raised nothing, or lowered the version |
+| `tests/test-version.php` (PR) | The four locations disagreeing with each other |
+| `tag-and-release.yml` (release) | A tag that does not match the `Version:` header |
+
+The first two are the ones that matter, because they fail on a branch rather than at a release. Note what the second cannot see on its own: four locations agreeing on the *old* number is a passing state, so consistency checking alone never notices a bump that did not happen. Together the three pin the tag to all four locations and to a number strictly above `main`, which is why the release workflow needs no four-way check of its own.
+
 ## Commands
 
 | Command | What it does |
@@ -109,9 +154,10 @@ Change these only with the reasoning in mind — each one exists because the obv
 | `composer install` | Installs `humanmade/coding-standards` (the only dependency) |
 | `composer phpcs` | Lints `inc/`, `site-icon-fallback.php` and `uninstall.php` against the HM standard via `.phpcs.xml` |
 | `composer phpcbf` | Auto-fixes what phpcs can |
-| `npm test` | Runs both suites below |
-| `npm run test:php` | `tests/test-routing.php` — plain PHP, no WordPress bootstrap |
-| `npm run test:sh` | The shell suites — `test-nginx-installer.sh` drives the installer against temp files, `test-strip-dev-files.sh` drives the release strip against throwaway repositories |
+| `npm test` | Runs both suites below. CI runs this on every PR via `tests.yml`, unfiltered by path |
+| `npm run test:php` | The PHP suites, both plain PHP with no WordPress bootstrap — `test-routing.php` covers routing and streaming, `test-version.php` asserts the four version locations agree |
+| `npm run test:sh` | The shell suites — `test-nginx-installer.sh` drives the installer against temp files, `test-strip-dev-files.sh` and `test-version-bump.sh` drive the release strip and the version gate against throwaway repositories |
+| `npm run check:version` | Answers "does this branch ship a change that needs a version bump?" — judges the working tree, so it is not part of `npm test` |
 | `wp site-icon-fallback status` | The plugin's own check: icon set, server, reachability, serve mode |
 | `wp site-icon-fallback nginx-config` | Prints the snippet for this install |
 | `npm run env:start` | Boots `@wordpress/env` on port 3031 with Query Monitor |

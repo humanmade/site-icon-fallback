@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Site Icon Fallback
  * Description:       A lightweight fallback that serves your Site Icon from the site root, reducing 404s.
- * Version:           0.1.0
+ * Version:           0.1.1
  * Requires at least: 6.7
  * Requires PHP:      8.2
  * Author:            Human Made
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 /**
  * Absolute path to this file.
