@@ -63,6 +63,24 @@ function wp_check_filetype( $f ) {
 	return $GLOBALS['__filetype'];
 }
 
+// The site_icon attachment. Zero by default, so every test that predates the attachment read
+// keeps exercising the path it was written for.
+$GLOBALS['__options']    = [ 'site_icon' => 0 ];
+$GLOBALS['__attached']   = '';
+$GLOBALS['__attachment'] = [];
+
+function get_option( $name, $default_value = false ) {
+	return $GLOBALS['__options'][ $name ] ?? $default_value;
+}
+
+function get_attached_file( $id ) {
+	return $GLOBALS['__attached'];
+}
+
+function wp_get_attachment_metadata( $id ) {
+	return $GLOBALS['__attachment'];
+}
+
 // A scripted HTTP response, plus a record of what was asked for. Call counting is what
 // makes "the failure was not retried" testable at all.
 $GLOBALS['__http']       = [ 'code' => 0, 'body' => '', 'type' => '' ];
@@ -372,9 +390,9 @@ $GLOBALS['__http_calls'] = 0;
 $gone     = 'https://cdn.example.com/gone.png';
 $gone_key = SiteIconFallback\Icon_Fetch\BYTES_TRANSIENT_PREFIX . md5( $gone );
 
-check( 'a failed fetch returns null', SiteIconFallback\Icon_Fetch\fetch_icon( $gone ), null );
+check( 'a failed fetch returns null', SiteIconFallback\Icon_Fetch\fetch_icon( $gone, 180 ), null );
 check( 'one request was made', $GLOBALS['__http_calls'], 1 );
-check( 'the next call also returns null', SiteIconFallback\Icon_Fetch\fetch_icon( $gone ), null );
+check( 'the next call also returns null', SiteIconFallback\Icon_Fetch\fetch_icon( $gone, 180 ), null );
 check( 'the request was not repeated', $GLOBALS['__http_calls'], 1 );
 check( 'the failure is held for less time than the icon', ( $GLOBALS['__transients'][ $gone_key ]['ttl'] ?? 0 ) < SiteIconFallback\get_content_max_age(), true );
 
@@ -382,12 +400,73 @@ $GLOBALS['__http'] = [ 'code' => 200, 'body' => $png, 'type' => 'image/png' ];
 $good     = 'https://cdn.example.com/good.png';
 $good_key = SiteIconFallback\Icon_Fetch\BYTES_TRANSIENT_PREFIX . md5( $good );
 
-check( 'a successful fetch returns the bytes', ( SiteIconFallback\Icon_Fetch\fetch_icon( $good )['body'] ?? null ), $png );
+check( 'a successful fetch returns the bytes', ( SiteIconFallback\Icon_Fetch\fetch_icon( $good, 180 )['body'] ?? null ), $png );
 check( 'and is cached for the content lifetime', $GLOBALS['__transients'][ $good_key ]['ttl'] ?? null, SiteIconFallback\get_content_max_age() );
 check( 'two requests in total', $GLOBALS['__http_calls'], 2 );
-check( 'a cached icon is served from the cache', ( SiteIconFallback\Icon_Fetch\fetch_icon( $good )['body'] ?? null ), $png );
+check( 'a cached icon is served from the cache', ( SiteIconFallback\Icon_Fetch\fetch_icon( $good, 180 )['body'] ?? null ), $png );
 check( 'with no further request', $GLOBALS['__http_calls'], 2 );
 
+echo "\nReading the icon from its attachment\n";
+// The case this exists for: an image service has rewritten the Site Icon URL off the uploads
+// path, so read_local_icon() cannot match it and the bytes would otherwise be fetched back
+// over HTTP from the site's own front end.
+$GLOBALS['__transients'] = [];
+$GLOBALS['__http']       = [ 'code' => 0, 'body' => '', 'type' => '' ];
+$GLOBALS['__http_calls'] = 0;
+
+$icon_dir = $GLOBALS['__uploads']['basedir'] . '/2026/08';
+@mkdir( $icon_dir, 0777, true );
+file_put_contents( $icon_dir . '/favicon.png', $png . 'full' );
+file_put_contents( $icon_dir . '/favicon-180x180.png', $png . '180' );
+file_put_contents( $icon_dir . '/favicon-192x192.png', $png . '192' );
+
+$GLOBALS['__options']['site_icon'] = 7;
+$GLOBALS['__attached']             = $icon_dir . '/favicon.png';
+$GLOBALS['__attachment']           = [
+	'file'  => '2026/08/favicon.png',
+	'sizes' => [
+		'site_icon-180' => [ 'file' => 'favicon-180x180.png', 'width' => 180, 'height' => 180 ],
+		'site_icon-192' => [ 'file' => 'favicon-192x192.png', 'width' => 192, 'height' => 192 ],
+		// Not a Site Icon size, and not square. Picking it would serve a 300x200 image under
+		// a square filename, and the file does not exist so the read would fail outright.
+		'medium'        => [ 'file' => 'favicon-300x200.png', 'width' => 300, 'height' => 200 ],
+	],
+];
+
+$rewritten = 'https://example.com/tachyon/2026/08/favicon.png?fit=180,180';
+
+check( 'a rewritten URL is served from disk', ( SiteIconFallback\Icon_Fetch\fetch_icon( $rewritten, 180 )['body'] ?? null ), $png . '180' );
+check( 'with no HTTP request at all', $GLOBALS['__http_calls'], 0 );
+
+$GLOBALS['__transients'] = [];
+check( 'a smaller size takes the next derivative up', ( SiteIconFallback\Icon_Fetch\fetch_icon( $rewritten . '&a', 120 )['body'] ?? null ), $png . '180' );
+$GLOBALS['__transients'] = [];
+check( 'an exact size takes its own derivative', ( SiteIconFallback\Icon_Fetch\fetch_icon( $rewritten . '&b', 192 )['body'] ?? null ), $png . '192' );
+$GLOBALS['__transients'] = [];
+check( 'a size above every derivative falls back to the original', ( SiteIconFallback\Icon_Fetch\fetch_icon( $rewritten . '&c', 270 )['body'] ?? null ), $png . 'full' );
+check( 'and none of that touched the network', $GLOBALS['__http_calls'], 0 );
+
+// Precedence: a URL that does map into uploads is still read by URL, so the existing path is
+// unchanged wherever it already worked.
+$GLOBALS['__transients'] = [];
+check( 'an uploads URL still wins over the attachment', ( SiteIconFallback\Icon_Fetch\fetch_icon( 'https://example.com/wp-content/uploads/2018/12/icon.png', 180 )['body'] ?? null ), $png );
+
+$GLOBALS['__transients']           = [];
+$GLOBALS['__options']['site_icon'] = 0;
+$GLOBALS['__http']                 = [ 'code' => 200, 'body' => $png, 'type' => 'image/png' ];
+check( 'without the option the network is still used', ( SiteIconFallback\Icon_Fetch\fetch_icon( $rewritten, 180 )['body'] ?? null ), $png );
+check( 'and that took a request', $GLOBALS['__http_calls'], 1 );
+
+$GLOBALS['__transients']           = [];
+$GLOBALS['__options']['site_icon'] = 7;
+$GLOBALS['__attached']             = '';
+check( 'an attachment with no file on disk falls through', ( SiteIconFallback\Icon_Fetch\fetch_icon( $rewritten, 180 )['body'] ?? null ), $png );
+check( 'which also took a request', $GLOBALS['__http_calls'], 2 );
+
+$GLOBALS['__options']['site_icon'] = 0;
+unlink( $icon_dir . '/favicon.png' );
+unlink( $icon_dir . '/favicon-180x180.png' );
+unlink( $icon_dir . '/favicon-192x192.png' );
 unlink( $dir . '/icon.png' );
 
 echo "\nnginx snippet\n";
