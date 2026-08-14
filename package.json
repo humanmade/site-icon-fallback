@@ -13,7 +13,7 @@
 		"lint:php": "composer phpcs",
 		"test": "npm run test:php && npm run test:sh",
 		"test:php": "php tests/test-routing.php",
-		"test:sh": "bash tests/test-nginx-installer.sh"
+		"test:sh": "bash tests/test-nginx-installer.sh && bash tests/test-strip-dev-files.sh"
 	},
 	"author": "Human Made Limited",
 	"license": "GPL-2.0-or-later",

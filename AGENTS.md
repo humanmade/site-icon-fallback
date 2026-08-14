@@ -74,6 +74,10 @@ Change these only with the reasoning in mind — each one exists because the obv
 
 **Uninstall cleans this site, not the network.** Everything the plugin stores is a transient — it owns no options. The cached-bytes ones are keyed by a hash of the icon URL, so they can only be matched, not named: one `LIKE` sweep of the current site's options table, with the whole pattern passed through `esc_like()` because `_` is a single-character wildcard and `_transient_` is mostly underscores. Other sites on a network are deliberately left alone: what they hold expires within a day by itself and core's daily `delete_expired_transients()` reclaims it, which beats an unbounded `switch_to_blog()` loop while an admin waits on a delete. A test asserts no option is deleted, because none should ever be written.
 
+**The release branch is stripped, and `git archive` is what decides by how much.** `release` is built by hm-github-actions' `build-to-release-branch`, which reverse-applies main's entire diff and reads no ignore file, so left alone the branch is a full mirror of main. The one seam is `build_script`: it runs after main's tree is staged and before the `commit --amend` that publishes it, which makes it the only point where the commit's contents can be narrowed. `.github/strip-dev-files.sh` drops the dev files from the index there. It asks `git archive` what survives rather than re-reading `.gitattributes` through `git check-attr` — an `export-ignore` on a directory pattern such as `/tests` matches the directory entry alone, and check-attr reports nothing for the files inside it, so the obvious implementation silently ships the whole test suite. Archive's traversal is also exactly what GitHub runs to build a tag's source archive, so deferring to it is what stops the branch, the tag archive and the release zip from drifting apart.
+
+**The release zip is `git archive --prefix`, not GitHub's generated source archive.** The generated zipball extracts to a version-named directory, which becomes the plugin's directory name on a manual wp-admin upload and so changes with every release. `--prefix=site-icon-fallback/` pins it. Nothing has to be installed to do this: the release branch is already the distributable tree, so `wp dist-archive` would only re-derive the same answer from a second list. `.distignore` is kept for running that by hand, and stays in step with `.gitattributes`.
+
 ## Environment constraints
 
 **Requests must reach PHP.** Apache is fine unaided — core's own `.htaccess` sends non-existent files to `index.php`, so the plugin works there with nothing generated for it. Standard nginx `try_files` is fine too. Tuned nginx configs that terminate static extensions are not, and are the reason `nginx.conf.example` exists.
@@ -107,7 +111,7 @@ Change these only with the reasoning in mind — each one exists because the obv
 | `composer phpcbf` | Auto-fixes what phpcs can |
 | `npm test` | Runs both suites below |
 | `npm run test:php` | `tests/test-routing.php` — plain PHP, no WordPress bootstrap |
-| `npm run test:sh` | `tests/test-nginx-installer.sh` — drives the installer against temp files |
+| `npm run test:sh` | The shell suites — `test-nginx-installer.sh` drives the installer against temp files, `test-strip-dev-files.sh` drives the release strip against throwaway repositories |
 | `wp site-icon-fallback status` | The plugin's own check: icon set, server, reachability, serve mode |
 | `wp site-icon-fallback nginx-config` | Prints the snippet for this install |
 | `npm run env:start` | Boots `@wordpress/env` on port 3031 with Query Monitor |
