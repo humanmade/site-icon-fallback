@@ -74,10 +74,11 @@ const TYPE_SIGNATURES = [
  * Reads from disk when the URL maps into the uploads directory, and falls back to HTTP
  * when it does not — the case wherever a CDN or image service rewrites the URL.
  *
- * @param string $url Site Icon URL.
+ * @param string $url  Site Icon URL.
+ * @param int    $size Size in pixels the request resolved to.
  * @return array{body: string, type: string}|null Null when the icon could not be read.
  */
-function fetch_icon( string $url ): ?array {
+function fetch_icon( string $url, int $size ): ?array {
 	$key    = BYTES_TRANSIENT_PREFIX . md5( $url );
 	$cached = get_transient( $key );
 
@@ -91,7 +92,7 @@ function fetch_icon( string $url ): ?array {
 		return null;
 	}
 
-	$icon = read_local_icon( $url ) ?? request_icon( $url );
+	$icon = read_local_icon( $url ) ?? read_attachment_icon( $size ) ?? request_icon( $url );
 
 	if ( $icon === null ) {
 		set_transient( $key, FETCH_FAILED, SiteIconFallback\get_failure_cache_lifetime() );
@@ -125,15 +126,89 @@ function read_local_icon( string $url ): ?array {
 		return null;
 	}
 
-	$file = $uploads['basedir'] . substr( $path, strlen( $uploads['baseurl'] ) );
+	return read_icon_file( $uploads['basedir'] . substr( $path, strlen( $uploads['baseurl'] ) ) );
+}
 
-	// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_is_readable -- Reading a file inside the uploads directory this install owns.
+/**
+ * Read the Site Icon from the attachment the `site_icon` option names.
+ *
+ * The URL-based read above cannot help wherever an image service rewrites the Site Icon URL,
+ * because the rewritten URL no longer sits under the uploads base URL — and on those installs
+ * the bytes are still on disk. See CLAUDE.md: "The attachment is read before the network."
+ *
+ * @param int $size Size in pixels the request resolved to.
+ * @return array{body: string, type: string}|null Null when no local file could be resolved.
+ */
+function read_attachment_icon( int $size ): ?array {
+	$id = (int) get_option( 'site_icon' );
+
+	if ( $id <= 0 ) {
+		return null;
+	}
+
+	$file = get_attachment_icon_path( $id, $size );
+
+	return $file === null ? null : read_icon_file( $file );
+}
+
+/**
+ * The path on disk to the derivative an attachment would serve at a given size.
+ *
+ * Mirrors how core resolves a requested size: the smallest square derivative at least as
+ * large, falling back to the full-size upload when none is.
+ *
+ * @param int $id   Attachment ID.
+ * @param int $size Size in pixels.
+ * @return string|null Null when the attachment has no file on disk.
+ */
+function get_attachment_icon_path( int $id, int $size ): ?string {
+	$original = get_attached_file( $id );
+
+	if ( ! is_string( $original ) || $original === '' ) {
+		return null;
+	}
+
+	$meta  = wp_get_attachment_metadata( $id );
+	$sizes = is_array( $meta ) && is_array( $meta['sizes'] ?? null ) ? $meta['sizes'] : [];
+	$best  = null;
+
+	foreach ( $sizes as $data ) {
+		$width  = (int) ( $data['width'] ?? 0 );
+		$height = (int) ( $data['height'] ?? 0 );
+		$file   = $data['file'] ?? '';
+
+		// Non-square derivatives are some other image size registered on the site, not a
+		// Site Icon one, and would be served under a square filename.
+		if ( ! is_string( $file ) || $file === '' || $width !== $height || $width < $size ) {
+			continue;
+		}
+
+		if ( $best === null || $width < $best['width'] ) {
+			$best = [
+				'width' => $width,
+				'file'  => $file,
+			];
+		}
+	}
+
+	// Derivatives sit beside the original, which is the only path metadata records them by.
+	return $best === null ? $original : dirname( $original ) . '/' . $best['file'];
+}
+
+/**
+ * Read an icon from a path on disk.
+ *
+ * @param string $file Absolute path.
+ * @return array{body: string, type: string}|null Null when unreadable, oversized or not servable.
+ */
+function read_icon_file( string $file ): ?array {
+	// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_is_readable -- Reading a file this install owns, reached only via the uploads directory or the site_icon attachment.
 	if ( ! is_readable( $file ) ) {
 		return null;
 	}
 
 	// Checked before the read, so an oversized original is never pulled into memory. A Site
-	// Icon set with `wp option update site_icon <id>` generates no derivatives, so the URL
+	// Icon set with `wp option update site_icon <id>` generates no derivatives, so the path
 	// resolves to the full-size upload.
 	$bytes = filesize( $file );
 
@@ -149,7 +224,7 @@ function read_local_icon( string $url ): ?array {
 		return null;
 	}
 
-	// phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown, WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local uploads file, already constrained to the uploads directory above.
+	// phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown, WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file, constrained above to the uploads directory or the site_icon attachment.
 	$body = file_get_contents( $file );
 
 	if ( ! is_string( $body ) || $body === '' ) {

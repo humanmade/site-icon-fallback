@@ -4,7 +4,7 @@ Tags: favicon, site icon, apple-touch-icon, safari, ios
 Requires at least: 6.7
 Tested up to: 7.0
 Requires PHP: 8.2
-Stable tag: 0.1.1
+Stable tag: 0.1.2
 License: GPL-2.0-or-later
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
 
@@ -95,6 +95,10 @@ The root paths return a 404. Notably this is *not* what core does for `/favicon.
 57, 60, 72, 76, 114, 120, 144, 152, 167, 180 and 192. Sizes outside that list are refused, so the endpoint cannot be used to generate arbitrary image derivatives.
 
 == Changelog ==
+
+= 0.1.2 =
+* The Site Icon is now read from its attachment on disk when an image service has rewritten its URL, instead of being fetched back over HTTP from the site's own front end.
+* Fixes icon requests falling back to a redirect on sites behind an image service, where that fetch could not succeed.
 
 = 0.1.1 =
 * Releases now include an installable site-icon-fallback.zip, instead of only the generated source archive.
