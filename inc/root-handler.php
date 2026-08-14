@@ -116,7 +116,7 @@ function serve_icon( int $size ): void {
 	}
 
 	if ( get_serve_mode() === 'stream' ) {
-		$icon = Icon_Fetch\fetch_icon( $url );
+		$icon = Icon_Fetch\fetch_icon( $url, $size );
 
 		if ( $icon !== null ) {
 			Icon_Stream\send_icon_bytes( $icon );
