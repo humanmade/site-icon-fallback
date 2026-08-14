@@ -46,12 +46,34 @@ jobs:
         id: commit
         run: echo "sha=$( git rev-parse HEAD )" >> "$GITHUB_OUTPUT"
 
+      # GitHub's own source archive extracts to a version-named directory
+      # (site-icon-fallback-1.0.0/), which becomes the plugin directory on a manual
+      # wp-admin zip upload and so changes on every release. --prefix pins it.
+      - name: Build plugin zip
+        run: |
+          git archive --format=zip \
+            --prefix=site-icon-fallback/ \
+            --output="${RUNNER_TEMP}/site-icon-fallback.zip" \
+            HEAD
+
+      # The release branch is stripped to the distributable tree before it is tagged, so
+      # a zip missing the plugin's entrypoint means that strip took too much.
+      - name: Verify zip is installable
+        run: |
+          if ! unzip -l "${RUNNER_TEMP}/site-icon-fallback.zip" \
+            | grep -q 'site-icon-fallback/site-icon-fallback\.php'; then
+            echo "::error::Built zip does not contain site-icon-fallback/site-icon-fallback.php"
+            unzip -l "${RUNNER_TEMP}/site-icon-fallback.zip"
+            exit 1
+          fi
+
       - name: Create tag and GitHub Release
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
         with:
           tag: ${{ inputs.version }}
           commit: ${{ steps.commit.outputs.sha }}
           name: ${{ inputs.version }}
+          artifacts: ${{ runner.temp }}/site-icon-fallback.zip
           generateReleaseNotes: true
           draft: false
           prerelease: false
