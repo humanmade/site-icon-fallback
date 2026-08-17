@@ -15,8 +15,13 @@ use SiteIconFallback\Icon_Stream;
 
 defined( 'ABSPATH' ) || exit;
 
-/** Matches apple-touch-icon.png along with its precomposed and sized variants. */
-const TOUCH_ICON_PATTERN = '#^apple-touch-icon(?:-precomposed)?(?:-(\d+)x(\d+))?\.png$#';
+/**
+ * Matches apple-touch-icon.png along with its precomposed and sized variants.
+ *
+ * The branch reset `(?|` lets every alternative number its dimensions 1 and 2, so
+ * suffix order costs no extra groups. See CLAUDE.md: "-precomposed goes on either side."
+ */
+const TOUCH_ICON_PATTERN = '#^apple-touch-icon(?:-precomposed|(?|-(\d+)x(\d+)-precomposed|-precomposed-(\d+)x(\d+)|-(\d+)x(\d+)))?\.png$#';
 
 /** Matches favicon.ico and favicon.png. */
 const FAVICON_PATTERN = '#^favicon\.(?:ico|png)$#';

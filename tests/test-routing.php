@@ -209,10 +209,18 @@ check( 'sized 152 -> 152', route( '/apple-touch-icon-152x152.png' ), 152 );
 check( 'precomposed sized 120 -> 120', route( '/apple-touch-icon-precomposed-120x120.png' ), 120 );
 check( 'query string ignored', route( '/apple-touch-icon-180x180.png?v=2' ), 180 );
 
+// The order iOS actually probes: size first, then -precomposed. This is the highest-priority
+// filename a client asks for, and the one the pattern originally missed.
+check( 'sized then precomposed 152 -> 152', route( '/apple-touch-icon-152x152-precomposed.png' ), 152 );
+check( 'sized then precomposed 180 -> 180', route( '/apple-touch-icon-180x180-precomposed.png' ), 180 );
+
 echo "\nRefusals\n";
 check( 'out-of-allowlist 9999 refused', route( '/apple-touch-icon-9999x9999.png' ), 0 );
 check( 'non-square refused', route( '/apple-touch-icon-100x200.png' ), 0 );
 check( 'unsupported size 300 refused', route( '/apple-touch-icon-300x300.png' ), 0 );
+check( 'out-of-allowlist precomposed refused', route( '/apple-touch-icon-9999x9999-precomposed.png' ), 0 );
+check( 'non-square precomposed refused', route( '/apple-touch-icon-100x200-precomposed.png' ), 0 );
+check( 'precomposed on both sides not matched', route( '/apple-touch-icon-precomposed-120x120-precomposed.png' ), null );
 
 echo "\nFavicon routing\n";
 check( 'favicon.ico -> 32', route( '/favicon.ico' ), 32 );
