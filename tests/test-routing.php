@@ -223,8 +223,8 @@ check( 'non-square precomposed refused', route( '/apple-touch-icon-100x200-preco
 check( 'precomposed on both sides not matched', route( '/apple-touch-icon-precomposed-120x120-precomposed.png' ), null );
 
 echo "\nFavicon routing\n";
-check( 'favicon.ico -> 32', route( '/favicon.ico' ), 32 );
-check( 'favicon.png -> 32', route( '/favicon.png' ), 32 );
+check( 'favicon.ico -> 180', route( '/favicon.ico' ), 180 );
+check( 'favicon.png -> 180', route( '/favicon.png' ), 180 );
 
 echo "\nNon-matches pass through\n";
 check( 'nested path not matched', route( '/wp-content/apple-touch-icon.png' ), null );
@@ -235,7 +235,7 @@ check( 'jpg not matched', route( '/apple-touch-icon.jpg' ), null );
 echo "\nSubdirectory install\n";
 $GLOBALS['__home_url'] = 'https://example.com/blog/';
 check( 'subdir root icon -> 180', route( '/blog/apple-touch-icon.png' ), 180 );
-check( 'subdir favicon -> 32', route( '/blog/favicon.ico' ), 32 );
+check( 'subdir favicon -> 180', route( '/blog/favicon.ico' ), 180 );
 $GLOBALS['__home_url'] = 'https://example.com/';
 
 echo "\nMeta tags\n";
@@ -276,6 +276,12 @@ $collapsed = SiteIconFallback\Meta_Tags\get_declarable_icons( [ 120, 152, 167, 1
 check( 'four sizes collapse to one tag', count( $collapsed ), 1 );
 check( 'kept size is the largest of the group', array_key_first( $collapsed ), 180 );
 check( 'kept URL is the real 180 derivative', reset( $collapsed ), 'https://cdn.example.com/icon.png-180.png' );
+
+// FAVICON_SIZE has to be one of the four, so the favicon paths serve a file that exists on
+// every install rather than one only an image service can produce. Asserting the resolved
+// URL alone would not catch a regression here: 64 and 180 both resolve to the 180 file.
+check( 'the favicon size is one core generates', in_array( SiteIconFallback\FAVICON_SIZE, $GLOBALS['__generated'], true ), true );
+check( 'and it resolves to that exact derivative', SiteIconFallback\get_icon_url( SiteIconFallback\FAVICON_SIZE ), 'https://cdn.example.com/icon.png-180.png' );
 
 $mixed = SiteIconFallback\Meta_Tags\get_declarable_icons( [ 120, 192 ] );
 check( 'distinct derivatives stay separate', count( $mixed ), 2 );

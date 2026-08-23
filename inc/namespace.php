@@ -32,9 +32,11 @@ const DEFAULT_TOUCH_ICON_SIZE = 180;
 /**
  * Size used for /favicon.ico and /favicon.png.
  *
- * Matches core's do_favicon(), so the two paths agree on which derivative they serve.
+ * Clears the 48px Google Search recommends, which core's do_favicon() sits under at 32.
+ * One of the four sizes core generates, so every install serves it exactly rather than
+ * resolving up to a size only an image service could produce.
  */
-const FAVICON_SIZE = 32;
+const FAVICON_SIZE = 180;
 
 /**
  * Response header marking a response as ours.
