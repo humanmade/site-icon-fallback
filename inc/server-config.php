@@ -79,7 +79,8 @@ function get_nginx_snippet(): string {
  * Rebase a snippet written for a root install onto this install's own path.
  *
  * A subdirectory install needs both halves moved: the location patterns, and the try_files
- * fallback, which otherwise points at whatever sits at the domain root.
+ * fallback, which otherwise points at whatever sits at the domain root. The favicon.ico
+ * rewrite is carried by the same two rules, its pattern by one and its target by the other.
  * See CLAUDE.md: "Server config is rooted at home_url(), not at /."
  *
  * @param string $snippet Config written against '/'.

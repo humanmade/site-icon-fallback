@@ -77,7 +77,9 @@ strip_block() {
 # Print the snippet, rooted at --base. The bundled file is written for an install at the
 # domain root, which is both the common case and what keeps it valid nginx to paste as it
 # is. A subdirectory install needs the location patterns and the try_files fallback moved
-# together, matching what get_nginx_snippet() does on the PHP side.
+# together, matching what get_nginx_snippet() does on the PHP side. The favicon.ico rewrite
+# needs no rule of its own: its pattern rides the first substitution and its target the
+# second.
 render_snippet() {
 	if [ "${base}" = '/' ]; then
 		cat "${SNIPPET_FILE}"
