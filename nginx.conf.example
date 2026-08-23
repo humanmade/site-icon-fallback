@@ -10,3 +10,12 @@ location ~ ^/apple-touch-icon(?:-precomposed)?(?:-\d+x\d+)?(?:-precomposed)?\.pn
 location ~ ^/favicon\.(ico|png)$ {
     try_files $uri /index.php?$args;
 }
+
+# Some hosts pin favicon.ico with `location = /favicon.ico`, often answering it with a 1x1
+# gif so the path does not 404. An exact match is resolved before any regex, and a second
+# one is a duplicate-location error that stops nginx booting, so the rule above cannot win
+# that path. A rewrite can: it runs before nginx selects a location. Guarded on the file not
+# existing, so a real favicon.ico at the web root is still served untouched.
+if ( !-f $request_filename ) {
+    rewrite ^/favicon\.ico$ /index.php?$args last;
+}

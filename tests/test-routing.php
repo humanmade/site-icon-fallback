@@ -488,8 +488,15 @@ check( 'root install is left alone', str_contains( $root_snippet, 'location ~ ^/
 check( 'root install falls back to its own index.php', str_contains( $root_snippet, 'try_files $uri /index.php?$args;' ), true );
 
 // try_files $uri, not a bare rewrite: a real favicon.ico sitting at the web root has to
-// keep being served. This is the whole of the plugin's file-wins guarantee now.
+// keep being served. The rewrite below carries the same guarantee its own way, since it
+// fires before try_files is ever reached.
 check( 'a real file still wins', substr_count( $root_snippet, 'try_files $uri' ), 2 );
+
+// A host pinning the path with `location = /favicon.ico` cannot be outvoted by the regex
+// location above, and a second exact match stops nginx booting rather than overriding it.
+// See CLAUDE.md: "/favicon.ico is reached by a rewrite, not a location."
+check( 'favicon.ico is rewritten past an exact-match location', str_contains( $root_snippet, 'rewrite ^/favicon\.ico$ /index.php?$args last;' ), true );
+check( 'the rewrite is guarded so a real file wins', str_contains( $root_snippet, 'if ( !-f $request_filename ) {' ), true );
 
 $GLOBALS['__home_url'] = 'https://example.com/blog/';
 $subdir_snippet        = SiteIconFallback\Server_Config\get_nginx_snippet();
@@ -499,12 +506,23 @@ check( 'subdirectory favicon location carries the base', str_contains( $subdir_s
 check( 'subdirectory fallback points at the install', str_contains( $subdir_snippet, 'try_files $uri /blog/index.php?$args;' ), true );
 check( 'no rule is left at the domain root', str_contains( $subdir_snippet, '^/apple-touch-icon' ), false );
 
+// The rewrite needs both halves moved for the same reason the locations do, and it is the
+// half apply_home_root() handles only incidentally: the pattern rides the '^/' rule and the
+// target rides the ' /index.php' rule, neither written with a rewrite in mind.
+check( 'the rewrite pattern carries the base', str_contains( $subdir_snippet, 'rewrite ^/blog/favicon\.ico$' ), true );
+check( 'the rewrite target points at the install', str_contains( $subdir_snippet, '$ /blog/index.php?$args last;' ), true );
+
 // A location added to nginx.conf.example without being rebased would match at the domain
 // root on every subdirectory install, silently. Counting rather than naming the two we
 // know about is what makes that a test failure instead of a surprise.
 $locations = preg_match_all( '/^location ~ \^/m', $subdir_snippet );
 $rebased   = preg_match_all( '/^location ~ \^\/blog\//m', $subdir_snippet );
 check( 'every location is rebased, not just the two we assert on', $rebased, $locations );
+
+// Same counting argument for rewrites, which the location count above cannot see.
+$rewrites        = preg_match_all( '/^\s*rewrite \^/m', $subdir_snippet );
+$rebased_rewrite = preg_match_all( '/^\s*rewrite \^\/blog\//m', $subdir_snippet );
+check( 'every rewrite is rebased too', $rebased_rewrite, $rewrites );
 
 // The shell installer writes the same block on hosts where WordPress cannot. It reads the
 // same file, so only the rebasing can drift — and a mismatch is a config that routes icons
