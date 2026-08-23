@@ -4,7 +4,7 @@ Tags: favicon, site icon, apple-touch-icon, safari, ios
 Requires at least: 6.7
 Tested up to: 7.0
 Requires PHP: 8.2
-Stable tag: 0.1.3
+Stable tag: 0.1.4
 License: GPL-2.0-or-later
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
 
@@ -95,6 +95,11 @@ The root paths return a 404. Notably this is *not* what core does for `/favicon.
 57, 60, 72, 76, 114, 120, 144, 152, 167, 180 and 192. Sizes outside that list are refused, so the endpoint cannot be used to generate arbitrary image derivatives.
 
 == Changelog ==
+
+= 0.1.4 =
+* `/favicon.ico` is now answered on hosts that pin the path with an exact-match nginx location, such as Altis, where it previously returned a blank 1x1 image. An exact match cannot be overridden by another location, so the snippet reaches it with a rewrite instead.
+* Reinstall the nginx rules for this to take effect: `bin/install-nginx-config.sh`, or copy the block from Tools > Site Health. A hand-placed `favicon.ico` at the web root is still served untouched.
+* The rewrite runs before nginx picks a location, so it now takes precedence over a `location = /favicon.ico` of your own as well. If you were using one to suppress the path, remove it or put a real `favicon.ico` at the web root.
 
 = 0.1.3 =
 * Icon requests are now answered when `-precomposed` follows the dimensions, as in `/apple-touch-icon-152x152-precomposed.png` — the first filename iOS asks for.

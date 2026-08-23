@@ -84,13 +84,15 @@ check 'indented install removes cleanly' "$(count_markers "${target}")" '0'
 echo
 echo "Subdirectory base"
 # The rules are matched against the path WordPress owns, not the domain root, so a
-# subdirectory install needs both the location patterns and the try_files fallback moved.
-# tests/test-routing.php asserts this output matches what get_nginx_snippet() produces.
+# subdirectory install needs the location patterns, the try_files fallback and the rewrite
+# moved. tests/test-routing.php asserts this output matches what get_nginx_snippet() produces.
 printf '' > "${target}"
 "${INSTALLER}" --target "${target}" --base blog > /dev/null
 check 'locations carry the base' "$(grep -c 'location ~ \^/blog/apple-touch-icon' "${target}")" '1'
 check 'fallback points at the install' "$(grep -c 'try_files $uri /blog/index.php' "${target}")" '2'
 check 'nothing is left at the domain root' "$(grep -c 'location ~ \^/apple-touch-icon' "${target}")" '0'
+check 'the rewrite pattern carries the base' "$(grep -c 'rewrite \^/blog/favicon' "${target}")" '1'
+check 'the rewrite target points at the install' "$(grep -cF '/blog/index.php?$args last;' "${target}")" '1'
 
 printf '' > "${target}"
 "${INSTALLER}" --target "${target}" --base /blog/ > /dev/null
