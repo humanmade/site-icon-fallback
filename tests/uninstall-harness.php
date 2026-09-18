@@ -36,15 +36,22 @@ function delete_transient( $key ) {
 }
 
 class Stub_WPDB {
+
 	public $options = 'wp_options';
 
 	public function esc_like( $text ) {
 		return addcslashes( (string) $text, '_%\\' );
 	}
 
+	/**
+	 * Fills each %s in turn with a quoted argument.
+	 *
+	 * substr_replace() rather than preg_replace(), because the arguments are LIKE patterns
+	 * full of backslashes and a regex replacement reads those as escape sequences.
+	 */
 	public function prepare( $query, ...$args ) {
 		foreach ( $args as $arg ) {
-			$query = preg_replace( '/%s/', "'" . $arg . "'", $query, 1 );
+			$query = substr_replace( $query, "'" . $arg . "'", (int) strpos( $query, '%s' ), 2 );
 		}
 
 		return $query;

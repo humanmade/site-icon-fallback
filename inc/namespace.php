@@ -146,3 +146,21 @@ function get_missing_max_age(): int {
 	 */
 	return (int) apply_filters( 'site_icon_fallback_missing_max_age', 5 * MINUTE_IN_SECONDS );
 }
+
+/**
+ * How long the Site Health reachability result is cached.
+ *
+ * A transient lifetime, not a Cache-Control value: it caches the result of a three-second
+ * blocking loopback request. Short, so a server config change shows up in Site Health
+ * without a long wait.
+ *
+ * @return int Seconds.
+ */
+function get_reachability_cache_lifetime(): int {
+	/**
+	 * Filters how long the Site Health reachability result is cached.
+	 *
+	 * @param int $lifetime Lifetime in seconds.
+	 */
+	return (int) apply_filters( 'site_icon_fallback_reachability_cache_lifetime', 5 * MINUTE_IN_SECONDS );
+}

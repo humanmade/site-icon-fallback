@@ -3,8 +3,7 @@
 # Install the Site Icon Fallback nginx rules into an nginx config file.
 #
 # The rules are fenced between BEGIN/END markers, mirroring how WordPress manages its own
-# .htaccess block. Re-running replaces the fenced block rather than appending a second
-# copy, which nginx would reject as a duplicate location.
+# .htaccess block. Re-running replaces the fenced block rather than appending to it.
 
 set -euo pipefail
 
@@ -59,13 +58,12 @@ detect_target() {
 }
 
 # Print a file with our fenced block removed. A file without the block passes through
-# unchanged, which is what makes the first install and every later one the same operation.
+# unchanged, so the first install and every later one are the same operation.
 #
-# Markers are matched by containment rather than equality, because nginx config is nested
-# and a block pasted inside a server {} block is normally indented. Equality would leave an
-# indented block in place and then append a second copy, which nginx rejects as a duplicate
-# location. The PHP half (remove_marker_block) matches the same way, so the two removers
-# cannot disagree about what is fenced.
+# Markers match by containment, not equality: nginx config is nested, so a block pasted inside
+# a server {} block arrives indented. Equality left that block in place and then appended a
+# second copy, which nginx rejects as a duplicate location. The PHP half (remove_marker_block)
+# matches the same way, so the two removers cannot disagree about what is fenced.
 strip_block() {
 	awk -v begin="${BEGIN_MARKER}" -v end="${END_MARKER}" '
 		index( $0, begin ) { skip = 1 }
@@ -74,12 +72,11 @@ strip_block() {
 	' "$1"
 }
 
-# Print the snippet, rooted at --base. The bundled file is written for an install at the
-# domain root, which is both the common case and what keeps it valid nginx to paste as it
-# is. A subdirectory install needs the location patterns and the try_files fallback moved
-# together, matching what get_nginx_snippet() does on the PHP side. The favicon.ico rewrite
-# needs no rule of its own: its pattern rides the first substitution and its target the
-# second.
+# Print the snippet, rooted at --base. The bundled file is written for the domain root, so it
+# stays valid nginx to paste as it is. A subdirectory install needs the location patterns and
+# the try_files fallback moved together, matching what get_nginx_snippet() does on the PHP
+# side. The favicon.ico rewrite needs no rule of its own: its pattern rides the first
+# substitution and its target the second.
 render_snippet() {
 	if [ "${base}" = '/' ]; then
 		cat "${SNIPPET_FILE}"

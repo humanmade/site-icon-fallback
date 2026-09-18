@@ -62,20 +62,16 @@ function filter_meta_tags( array $meta_tags ): array {
  * requested sizes hand back the same file. Grouping by URL declares each image once.
  * See CLAUDE.md: "Declared sizes are deduplicated by URL."
  *
- * Sizes are walked in ascending order, so the size kept for each image is the largest that
- * resolved to it.
- *
  * @param array<int, int|string> $sizes Requested square sizes in pixels.
  * @return array<int, string> Size in pixels mapped to icon URL.
  */
 function get_declarable_icons( array $sizes ): array {
 	$sizes = array_filter(
 		array_map( 'intval', $sizes ),
-		static function ( int $size ): bool {
-			return $size > 0;
-		}
+		static fn ( int $size ): bool => $size > 0
 	);
 
+	// Ascending, so the size kept for each image is the largest that resolved to it.
 	sort( $sizes );
 
 	$largest_for_url = [];

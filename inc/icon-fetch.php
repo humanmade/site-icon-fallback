@@ -116,17 +116,20 @@ function fetch_icon( string $url, int $size ): ?array {
  */
 function read_local_icon( string $url ): ?array {
 	$uploads = wp_upload_dir();
-	$path    = (string) strtok( $url, '?' );
 
 	if ( empty( $uploads['baseurl'] ) || empty( $uploads['basedir'] ) ) {
 		return null;
 	}
 
+	$path = (string) strtok( $url, '?' );
+
 	if ( ! str_starts_with( $path, $uploads['baseurl'] ) ) {
 		return null;
 	}
 
-	return read_icon_file( $uploads['basedir'] . substr( $path, strlen( $uploads['baseurl'] ) ) );
+	$relative = substr( $path, strlen( $uploads['baseurl'] ) );
+
+	return read_icon_file( $uploads['basedir'] . $relative );
 }
 
 /**
@@ -207,9 +210,8 @@ function read_icon_file( string $file ): ?array {
 		return null;
 	}
 
-	// Checked before the read, so an oversized original is never pulled into memory. A Site
-	// Icon set with `wp option update site_icon <id>` generates no derivatives, so the path
-	// resolves to the full-size upload.
+	// Checked before the read, so an oversized original is never pulled into memory.
+	// See CLAUDE.md: "MAX_ICON_BYTES applies to both fetch paths."
 	$bytes = filesize( $file );
 
 	if ( $bytes === false || $bytes > MAX_ICON_BYTES ) {
@@ -217,8 +219,7 @@ function read_icon_file( string $file ): ?array {
 	}
 
 	$filetype = wp_check_filetype( $file );
-	$declared = is_string( $filetype['type'] ?? null ) ? $filetype['type'] : '';
-	$type     = get_servable_type( $declared );
+	$type     = get_servable_type( (string) $filetype['type'] );
 
 	if ( $type === null ) {
 		return null;

@@ -7,7 +7,6 @@ on:
       - reopened
       - synchronize
       - ready_for_review
-    # Only run when PHP or the coding standards configuration change.
     paths:
       - '**.php'
       - '.phpcs.xml'

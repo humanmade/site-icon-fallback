@@ -4,11 +4,11 @@ Tags: favicon, site icon, apple-touch-icon, safari, ios
 Requires at least: 6.7
 Tested up to: 7.0
 Requires PHP: 8.2
-Stable tag: 0.1.5
+Stable tag: 0.2.0
 License: GPL-2.0-or-later
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
 
-A lightweight fallback that serves your Site Icon from the site root, reducing 404s.
+Serves your Site Icon from the site root, so /favicon.ico and /apple-touch-icon.png stop returning 404.
 
 == Description ==
 
@@ -18,7 +18,7 @@ This plugin answers those paths from your Site Icon. Change the icon in Settings
 
 It does two things:
 
-1. **Declares the sized icon tags.** Core emits a single `apple-touch-icon` link with no `sizes` attribute, so a client after a specific size has no exact match to pick. This plugin considers 120, 152, 167 and 180, and declares each size backed by a genuinely different image.
+1. **Declares the sized icon tags.** Core emits a single `apple-touch-icon` link with no `sizes` attribute, so a client after a specific size has no exact match to pick. This plugin considers 120, 152, 167 and 180, and declares each size backed by a different image.
 
    Sizes that resolve to the same file are declared once. WordPress generates only four Site Icon derivatives: 270, 192, 180 and 32. It resolves any other size to the smallest generated one at least as large, so without an image service in front, all four candidate sizes come back as the same 180x180 file. Declaring them all would claim four sizes for one image. With an image service such as Tachyon or Photon, every size gets its own derivative and all four are declared.
 
@@ -66,7 +66,7 @@ Two things to check before you install the rules:
     wp site-icon-fallback status --strict     # exit non-zero when a check fails, for CI
     wp site-icon-fallback nginx-config        # print the nginx rules for this install
 
-`status` answers the two questions Site Health answers, in a place a deploy script can read. Is a Site Icon set, and do root requests reach WordPress. It takes `--format=table|json|csv|yaml`.
+`status` answers the two questions Site Health answers, in a place a deploy script can read: is a Site Icon set, and do root requests reach WordPress. It takes `--format=table|json|csv|yaml`.
 
 One caveat before you wire `--strict` into CI. The reachability check is a loopback request to your home URL, so it fails wherever the machine running `wp` cannot reach your public address. That is common in containers. Confirm it agrees with `curl -I https://your-site/favicon.ico` first.
 
@@ -74,13 +74,13 @@ One caveat before you wire `--strict` into CI. The reachability check is a loopb
 
 = Why is activation refused? =
 
-The plugin supports nginx only, and refuses to activate when your web server reports itself as something else. WordPress works that out from `$_SERVER['SERVER_SOFTWARE']`, which the server chooses what to send. nginx sitting in front of Apache reports Apache, for instance. If you are on nginx and the check disagrees, return false from the `site_icon_fallback_require_nginx` filter in an mu-plugin.
+The plugin supports nginx only, and refuses to activate when your web server reports itself as something else. WordPress works that out from `$_SERVER['SERVER_SOFTWARE']`, and the server decides what goes in it. nginx sitting in front of Apache reports Apache. If you are on nginx and the check disagrees, return false from the `site_icon_fallback_require_nginx` filter in an mu-plugin.
 
 Activating with WP-CLI always works. A CLI run has no web server to ask, so the check has nothing to go on and prints a warning instead of standing in the way of a deploy.
 
 = Does it work on Apache? =
 
-Only nginx is supported and tested. The gate is on activation alone, so returning false from `site_icon_fallback_require_nginx` lets the plugin run, and core's own `.htaccess` rules already send unknown paths to `index.php`. I generate no Apache configuration, because on Apache there is nothing to generate.
+Only nginx is supported and tested. The gate is on activation alone, so returning false from `site_icon_fallback_require_nginx` lets the plugin run. Core's own `.htaccess` rules already send unknown paths to `index.php`. I generate no Apache configuration, because on Apache there is nothing to generate.
 
 = Do I need to change my server configuration? =
 
@@ -88,9 +88,9 @@ Usually no. The standard nginx recipe already routes unknown paths to `index.php
 
 = Does it redirect, or serve the image? =
 
-It serves the image: a 200 with the bytes, an `ETag`, and a long `Cache-Control`. Redirecting would be cheaper, but nothing guarantees an icon fetcher follows a redirect, and those fetchers are exactly the clients this plugin exists for. A conditional request with a matching `If-None-Match` gets a 304.
+It serves the image: a 200 with the bytes, an `ETag`, and a day-long `Cache-Control`. Redirecting would be cheaper, but nothing guarantees an icon fetcher follows a redirect. Those fetchers are the clients this plugin exists for. A conditional request with a matching `If-None-Match` gets a 304.
 
-The bytes come from disk when the Site Icon lives in the uploads directory, and over HTTP when a CDN or image service has rewritten the URL. Either way the result is cached, so PHP does the work once per cache period rather than once per request. The HTTP fetch asks for PNG explicitly, which stops an image service content-negotiating WebP into a URL ending in `.png`.
+The bytes come from disk when the Site Icon lives in the uploads directory, and over HTTP when a CDN or image service has rewritten the URL. Either way the result is cached, so PHP does the work once per cache period rather than once per request. The HTTP fetch asks for PNG, which stops an image service content-negotiating WebP into a URL ending in `.png`.
 
 To redirect instead:
 
@@ -100,13 +100,18 @@ That sends a 302, never a 301. Browsers cache a permanent redirect more or less 
 
 = What happens if no Site Icon is set? =
 
-The root paths return a 404. This is deliberately not what core does for `/favicon.ico`, which falls back to the WordPress logo. A site with no icon should look like it has no icon, rather than like WordPress.
+The root paths return a 404. Core does something different for `/favicon.ico`: it falls back to the WordPress logo. A site with no icon should look like it has no icon, rather than like WordPress.
 
 = Which sizes are supported? =
 
 57, 60, 72, 76, 114, 120, 144, 152, 167, 180 and 192. Sizes outside that list are refused, so the endpoint cannot be used to generate arbitrary image derivatives. A bare `/apple-touch-icon.png` serves 180, and so do `/favicon.ico` and `/favicon.png`.
 
 == Changelog ==
+
+= 0.2.0 =
+* New `site_icon_fallback_reachability_cache_lifetime` filter. Site Health caches whether root icon requests reach PHP, and that result comes from a three-second loopback request. The lifetime was fixed at five minutes with no way to change it, so after fixing a server configuration you had to wait it out. Shorten it to see the change sooner, lengthen it to make the loopback rarer.
+* `wp site-icon-fallback status` output is now translatable. The `ok`, `warn` and `fail` values stay in English, because `--format=json` consumers parse them and `--strict` compares them to decide a deploy's exit code.
+* Internal clarity pass across the plugin, with no change in behaviour. The Site Health test builds its three results through one helper rather than assembling one and rewriting it, and comments that had grown into second copies of the documentation now point at it, so the two cannot drift apart.
 
 = 0.1.5 =
 * `/favicon.ico` and `/favicon.png` now serve the Site Icon at 180px instead of 32px. Google Search recommends a favicon larger than 48x48, which the old size was under. 180 is one of the four sizes WordPress generates, so every site serves it exactly, with or without an image service.
@@ -117,7 +122,7 @@ The root paths return a 404. This is deliberately not what core does for `/favic
 * The rewrite runs before nginx picks a location, so it now takes precedence over a `location = /favicon.ico` of your own as well. If you were using one to suppress the path, remove it or put a real `favicon.ico` at the web root.
 
 = 0.1.3 =
-* Icon requests are now answered when `-precomposed` follows the dimensions, as in `/apple-touch-icon-152x152-precomposed.png` — the first filename iOS asks for.
+* Icon requests are now answered when `-precomposed` follows the dimensions, as in `/apple-touch-icon-152x152-precomposed.png`, the first filename iOS asks for.
 * The nginx snippet matches the same variants. Reinstall it with `bin/install-nginx-config.sh`, or copy the block from Tools > Site Health.
 
 = 0.1.2 =

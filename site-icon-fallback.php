@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name:       Site Icon Fallback
- * Description:       A lightweight fallback that serves your Site Icon from the site root, reducing 404s.
- * Version:           0.1.5
+ * Description:       Serves your Site Icon from the site root, so /favicon.ico and /apple-touch-icon.png stop returning 404.
+ * Version:           0.2.0
  * Requires at least: 6.7
  * Requires PHP:      8.2
  * Author:            Human Made
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const VERSION = '0.1.5';
+const VERSION = '0.2.0';
 
 /**
  * Absolute path to this file.

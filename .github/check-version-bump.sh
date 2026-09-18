@@ -28,18 +28,13 @@ read_version() {
 # the whole point: git archive prunes a directory before it looks inside, so `/tests` never
 # matches tests/foo.php on its own. See CLAUDE.md: "The release branch is stripped".
 ships() {
-	local path="$1" dir
+	local candidate="$1"
 
-	if [ "$( git check-attr export-ignore -- "${path}" | sed 's/.*: //' )" = 'set' ]; then
-		return 1
-	fi
-
-	dir="$( dirname "${path}" )"
-	while [ "${dir}" != '.' ] && [ "${dir}" != '/' ]; do
-		if [ "$( git check-attr export-ignore -- "${dir}" | sed 's/.*: //' )" = 'set' ]; then
+	while [ "${candidate}" != '.' ] && [ "${candidate}" != '/' ]; do
+		if [ "$( git check-attr export-ignore -- "${candidate}" | sed 's/.*: //' )" = 'set' ]; then
 			return 1
 		fi
-		dir="$( dirname "${dir}" )"
+		candidate="$( dirname "${candidate}" )"
 	done
 
 	return 0
@@ -95,9 +90,11 @@ if [ ! -s "${shipping}" ]; then
 	exit 0
 fi
 
+shipping_count="$( wc -l < "${shipping}" | tr -d ' ' )"
+
 if [ "${ALLOW_UNVERSIONED:-0}" = '1' ]; then
 	printf 'ALLOW_UNVERSIONED=1: %d shipping change(s) accepted at %s.\n' \
-		"$( wc -l < "${shipping}" | tr -d ' ' )" "${head_version}"
+		"${shipping_count}" "${head_version}"
 	exit 0
 fi
 
@@ -112,4 +109,4 @@ version_gt "${head_version}" "${base_version}" \
 	|| fail "version went backwards: ${BASE} is ${base_version}, this branch is ${head_version}"
 
 printf 'Version raised %s -> %s for %d shipping change(s).\n' \
-	"${base_version}" "${head_version}" "$( wc -l < "${shipping}" | tr -d ' ' )"
+	"${base_version}" "${head_version}" "${shipping_count}"

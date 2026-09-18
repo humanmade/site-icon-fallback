@@ -109,31 +109,31 @@ namespace {
 	require_once $base . '/lifecycle.php';
 	require_once $base . '/site-health.php';
 
-	$mode = $argv[1] ?? 'status';
-
 	\SiteIconFallback\CLI\register_commands();
 
-	if ( $mode === 'status' ) {
-		\SiteIconFallback\CLI\status_command( [], [ 'format' => 'json' ] );
-	}
+	switch ( $argv[1] ?? 'status' ) {
+		case 'status':
+			\SiteIconFallback\CLI\status_command( [], [ 'format' => 'json' ] );
+			break;
 
-	if ( $mode === 'status-strict' ) {
-		// No Site Icon and no loopback: two failures, which --strict turns into an exit code.
-		$GLOBALS['__site_icon'] = '';
-		$GLOBALS['__reachable'] = false;
-		\SiteIconFallback\CLI\status_command( [], [ 'strict' => true, 'fresh' => true ] );
-	}
+		case 'status-strict':
+			// No Site Icon and no loopback: two failures, which --strict turns into an exit code.
+			$GLOBALS['__site_icon'] = '';
+			$GLOBALS['__reachable'] = false;
+			\SiteIconFallback\CLI\status_command( [], [ 'strict' => true, 'fresh' => true ] );
+			break;
 
-	if ( $mode === 'nginx-config' ) {
-		// Called the way WP-CLI calls it — with both argument arrays, which this command
-		// declares no parameters for. PHP ignores the surplus for user-defined functions.
-		\SiteIconFallback\CLI\nginx_config_command( [], [] );
-	}
+		case 'nginx-config':
+			// Called the way WP-CLI calls it — with both argument arrays, which this command
+			// declares no parameters for. PHP ignores the surplus for user-defined functions.
+			\SiteIconFallback\CLI\nginx_config_command( [], [] );
+			break;
 
-	if ( $mode === 'activation' ) {
-		// No SERVER_SOFTWARE, exactly as WP-CLI leaves it.
-		unset( $_SERVER['SERVER_SOFTWARE'] );
-		\SiteIconFallback\Lifecycle\on_activation();
+		case 'activation':
+			// No SERVER_SOFTWARE, exactly as WP-CLI leaves it.
+			unset( $_SERVER['SERVER_SOFTWARE'] );
+			\SiteIconFallback\Lifecycle\on_activation();
+			break;
 	}
 
 	echo json_encode( $GLOBALS['__recorded'] );
