@@ -12,71 +12,83 @@ A lightweight fallback that serves your Site Icon from the site root, reducing 4
 
 == Description ==
 
-WordPress lets you set a Site Icon, then declares it in the page head. But a lot of clients never read that markup. Applebot, Safari's Favourites thumbnailer, Add to Home Screen, Reading List, and the link unfurlers in Slack and iMessage all request icons directly from your domain root — `/apple-touch-icon.png`, `/apple-touch-icon-152x152.png`, `/favicon.ico` — and get a 404.
+WordPress lets you set a Site Icon, then declares it in the page head. A lot of clients never read that markup. Applebot, Safari's Favourites thumbnailer, Add to Home Screen, Reading List, and the link unfurlers in Slack and iMessage ask your domain root directly. They request `/apple-touch-icon.png`, `/apple-touch-icon-152x152.png` and `/favicon.ico`, and get a 404.
 
 This plugin answers those paths from your Site Icon. Change the icon in Settings, and the root paths follow. Nothing is hardcoded and no files are copied into your web root.
 
 It does two things:
 
-1. **Declares the sized icon tags.** Core emits a single `apple-touch-icon` link with no `sizes` attribute, so a client after a specific size has no exact match to pick. This plugin considers 120, 152, 167 and 180, and declares each size that is backed by a genuinely different image.
+1. **Declares the sized icon tags.** Core emits a single `apple-touch-icon` link with no `sizes` attribute, so a client after a specific size has no exact match to pick. This plugin considers 120, 152, 167 and 180, and declares each size backed by a genuinely different image.
 
-   That last part matters. WordPress generates only four Site Icon derivatives — 270, 192, 180 and 32 — and resolves any other size to the smallest generated one at least as large. Without an image service in front, all four candidate sizes come back as the same 180x180 file, and declaring them all would put four tags in your head claiming four sizes for one image. Sizes that collapse onto the same file are declared once, at the largest size that resolved to it. With an image service such as Tachyon or Photon, every size resolves to its own derivative and all four are declared.
+   Sizes that resolve to the same file are declared once. WordPress generates only four Site Icon derivatives: 270, 192, 180 and 32. It resolves any other size to the smallest generated one at least as large, so without an image service in front, all four candidate sizes come back as the same 180x180 file. Declaring them all would claim four sizes for one image. With an image service such as Tachyon or Photon, every size gets its own derivative and all four are declared.
 
-2. **Answers the root paths.** Requests for `/apple-touch-icon*.png`, `/favicon.ico` and `/favicon.png` return the Site Icon at the size asked for, as a 200 with the image bytes. This needs those requests to reach WordPress, which they already do on a standard nginx configuration.
+2. **Answers the root paths.** Requests for `/apple-touch-icon*.png`, `/favicon.ico` and `/favicon.png` return the Site Icon at the size asked for, as a 200 with the image bytes. This half needs those requests to reach WordPress, which they already do on a standard nginx configuration.
 
-This plugin supports nginx and will not activate on another server.
+This plugin supports nginx, and refuses to activate on a server that reports itself as something else.
 
-Where they don't reach WordPress — some tuned nginx configurations answer static paths themselves — **Tools > Site Health** tests it directly and prints the exact configuration snippet you need.
+Where root requests do not reach WordPress, **Tools > Site Health** tests it directly and prints the configuration snippet you need. Some tuned nginx configurations answer static paths themselves, which is the usual cause.
 
 == Installation ==
 
-1. Put the plugin in `wp-content/plugins/site-icon-fallback`.
-2. Run `./bin/install-nginx-config.sh` from the plugin directory to install the nginx rules. Skip this if your nginx configuration already routes unknown paths to `index.php`, which most do.
-3. Activate the plugin, either in wp-admin or with `wp plugin activate site-icon-fallback`.
-4. Reload nginx so it picks up the new rules. Locally that usually means restarting the container or the server.
-5. Check it worked. Run `wp site-icon-fallback status`, or open **Tools > Site Health** and look for *Root icon requests reach WordPress*. If requests are not reaching PHP, Site Health prints the rules to add.
+1. Download the zip attached to the [latest release](https://github.com/humanmade/Site-icon-fallback/releases), which extracts to `site-icon-fallback/`.
+2. Put that directory in `wp-content/plugins/`.
+3. Activate the plugin in wp-admin, or run `wp plugin activate site-icon-fallback`.
+4. Set a Site Icon in **Settings > General**, if you have not already.
+5. Open **Tools > Site Health** and look for *Root icon requests reach WordPress*.
 
-Set a Site Icon in **Settings > General** if you haven't already. Without one the root paths return a 404 and an admin notice says so.
+Most nginx configurations need nothing further. Where Site Health reports that root requests are not arriving, see "Configuring nginx" below.
 
-The plugin writes no files and no options. Activating and deactivating changes nothing on disk or in your database.
+Without a Site Icon the root paths return a 404, and an admin notice tells you. The plugin writes no files and stores no options, so activating and deactivating changes nothing on disk or in your database.
 
-== Installing the nginx rules ==
+== Configuring nginx ==
 
-On nginx, the rules in `nginx.conf.example` need to be in your server configuration. On Altis, `bin/install-nginx-config.sh` will put them there for you:
+You only need this where Site Health reports that root requests do not reach WordPress. The rules live in `nginx.conf.example`. On Altis, the bundled script installs them for you:
 
-    ./bin/install-nginx-config.sh              # install into .config/nginx-additions.conf
-    ./bin/install-nginx-config.sh --dry-run    # show the result, write nothing
-    ./bin/install-nginx-config.sh --target PATH
-    ./bin/install-nginx-config.sh --remove
+    ./bin/install-nginx-config.sh                 # install into .config/nginx-additions.conf
+    ./bin/install-nginx-config.sh --target PATH   # install into a specific file
+    ./bin/install-nginx-config.sh --base blog     # root the rules at a subdirectory install
+    ./bin/install-nginx-config.sh --dry-run       # print the result, write nothing
+    ./bin/install-nginx-config.sh --remove        # take the block back out
 
-The block is fenced between `# BEGIN Site Icon Fallback` and `# END Site Icon Fallback`, the same way WordPress manages its own `.htaccess` section. Re-running replaces that block rather than appending a second copy — nginx rejects duplicate `location` directives, so appending blindly would take the site down. Everything outside the markers is left untouched, and `--remove` restores the file exactly as it was.
+Reload nginx afterwards. On Altis Cloud the configuration ships with a deploy.
 
-Restart or reload nginx afterwards. On Altis Cloud the configuration ships with a deploy.
+The block is fenced between `# BEGIN Site Icon Fallback` and `# END Site Icon Fallback`, the same way WordPress manages its own `.htaccess` section. Re-running the script replaces that block rather than appending a second copy. Appending would take the site down, because nginx rejects duplicate `location` directives. Everything outside the markers is left alone, and `--remove` restores the file exactly as it was.
 
-== Frequently Asked Questions ==
+Two things to check before you install the rules:
 
-= Why won't it activate? =
-
-The plugin supports nginx only, and refuses to activate when your web server reports itself as something else. WordPress works that out from `$_SERVER['SERVER_SOFTWARE']`, which the server chooses what to send — nginx sitting in front of Apache reports Apache, for instance. If you are on nginx and the check disagrees, return false from the `site_icon_fallback_require_nginx` filter in an mu-plugin.
-
-Activating with WP-CLI always works. There is no web server in a CLI run to ask, so the check has nothing to go on and does not stand in the way of a deploy. It prints a warning instead.
+* Your configuration needs `root` declared at server level. The rules resolve a path against whatever `root` is in scope, so a real file at the web root stops being found otherwise.
+* On a remote host without the script, run `wp site-icon-fallback nginx-config`. It prints the same rules, rooted at this install's home path.
 
 == WP-CLI ==
 
     wp site-icon-fallback status              # can the plugin actually serve icons here?
     wp site-icon-fallback status --fresh      # re-test instead of reading the cached result
     wp site-icon-fallback status --strict     # exit non-zero when a check fails, for CI
-    wp site-icon-fallback nginx-config        # print the rules for this install
+    wp site-icon-fallback nginx-config        # print the nginx rules for this install
 
-`status` answers the same two questions Site Health does — is there a Site Icon, and do root requests reach WordPress — in a place a deploy script can read. `--format=json` is supported.
+`status` answers the two questions Site Health answers, in a place a deploy script can read. Is a Site Icon set, and do root requests reach WordPress. It takes `--format=table|json|csv|yaml`.
+
+One caveat before you wire `--strict` into CI. The reachability check is a loopback request to your home URL, so it fails wherever the machine running `wp` cannot reach your public address. That is common in containers. Confirm it agrees with `curl -I https://your-site/favicon.ico` first.
+
+== Frequently Asked Questions ==
+
+= Why is activation refused? =
+
+The plugin supports nginx only, and refuses to activate when your web server reports itself as something else. WordPress works that out from `$_SERVER['SERVER_SOFTWARE']`, which the server chooses what to send. nginx sitting in front of Apache reports Apache, for instance. If you are on nginx and the check disagrees, return false from the `site_icon_fallback_require_nginx` filter in an mu-plugin.
+
+Activating with WP-CLI always works. A CLI run has no web server to ask, so the check has nothing to go on and prints a warning instead of standing in the way of a deploy.
+
+= Does it work on Apache? =
+
+Only nginx is supported and tested. The gate is on activation alone, so returning false from `site_icon_fallback_require_nginx` lets the plugin run, and core's own `.htaccess` rules already send unknown paths to `index.php`. I generate no Apache configuration, because on Apache there is nothing to generate.
 
 = Do I need to change my server configuration? =
 
-Usually no — the standard nginx recipe already routes unknown paths to `index.php` with `try_files`. Site Health will tell you if yours doesn't, and give you the snippet to add.
+Usually no. The standard nginx recipe already routes unknown paths to `index.php` with `try_files`. Site Health tells you where yours does not, and gives you the snippet to add.
 
 = Does it redirect, or serve the image? =
 
-It serves the image — a 200 with the bytes, an `ETag`, and a long `Cache-Control`. Redirecting would be cheaper, but nothing guarantees an icon fetcher follows a redirect, and those fetchers are exactly the clients this plugin exists for. A conditional request with a matching `If-None-Match` gets a 304.
+It serves the image: a 200 with the bytes, an `ETag`, and a long `Cache-Control`. Redirecting would be cheaper, but nothing guarantees an icon fetcher follows a redirect, and those fetchers are exactly the clients this plugin exists for. A conditional request with a matching `If-None-Match` gets a 304.
 
 The bytes come from disk when the Site Icon lives in the uploads directory, and over HTTP when a CDN or image service has rewritten the URL. Either way the result is cached, so PHP does the work once per cache period rather than once per request. The HTTP fetch asks for PNG explicitly, which stops an image service content-negotiating WebP into a URL ending in `.png`.
 
@@ -84,15 +96,15 @@ To redirect instead:
 
     add_filter( 'site_icon_fallback_serve_mode', fn() => 'redirect' );
 
-That sends a 302, never a 301 — browsers cache a permanent redirect more or less forever, so changing your Site Icon would never reach anyone who had already requested it.
+That sends a 302, never a 301. Browsers cache a permanent redirect more or less forever, so changing your Site Icon would never reach anyone who had already requested it.
 
 = What happens if no Site Icon is set? =
 
-The root paths return a 404. Notably this is *not* what core does for `/favicon.ico`, which falls back to the WordPress logo — a site with no icon should look like it has no icon, not like WordPress.
+The root paths return a 404. This is deliberately not what core does for `/favicon.ico`, which falls back to the WordPress logo. A site with no icon should look like it has no icon, rather than like WordPress.
 
 = Which sizes are supported? =
 
-57, 60, 72, 76, 114, 120, 144, 152, 167, 180 and 192. Sizes outside that list are refused, so the endpoint cannot be used to generate arbitrary image derivatives.
+57, 60, 72, 76, 114, 120, 144, 152, 167, 180 and 192. Sizes outside that list are refused, so the endpoint cannot be used to generate arbitrary image derivatives. A bare `/apple-touch-icon.png` serves 180, and so do `/favicon.ico` and `/favicon.png`.
 
 == Changelog ==
 
