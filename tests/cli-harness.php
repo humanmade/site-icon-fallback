@@ -3,7 +3,7 @@
  * Runs the WP-CLI commands against a fake WP_CLI and reports what they did.
  *
  * A subprocess, because the WP_CLI constant and class have to exist before inc/cli.php is
- * loaded — and tests/test-routing.php asserts the opposite, that everything degrades when
+ * loaded, and tests/test-routing.php asserts the opposite, that everything degrades when
  * they are absent. Both halves of that guard need testing, so they need separate processes.
  *
  * This also pins the name resolution. inc/cli.php sits in SiteIconFallback\CLI and reaches
@@ -124,7 +124,7 @@ namespace {
 			break;
 
 		case 'nginx-config':
-			// Called the way WP-CLI calls it — with both argument arrays, which this command
+			// Called the way WP-CLI calls it: with both argument arrays, which this command
 			// declares no parameters for. PHP ignores the surplus for user-defined functions.
 			\SiteIconFallback\CLI\nginx_config_command( [], [] );
 			break;

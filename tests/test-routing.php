@@ -105,7 +105,7 @@ function apply_filters( $tag, $value, ...$args ) {
 }
 
 /**
- * When __generated is null, every size resolves to its own URL — an image service.
+ * When __generated is null, every size resolves to its own URL (an image service).
  * When it is a list of generated sizes, the smallest one at least as large wins, which is
  * what core's image_get_intermediate_size() does.
  *
@@ -335,7 +335,7 @@ check( 'traversal outside uploads rejected', read_local_icon( 'https://evil.test
 echo "\nOversized local icons\n";
 // The cap is only worth having if it applies to the common path. A Site Icon set with
 // `wp option update site_icon <id>` never generates the site_icon-* derivatives, so the
-// URL resolves to the full-size original — which for a site icon is at least 512x512.
+// URL resolves to the full-size original, which for a site icon is at least 512x512.
 // Two files rather than one rewritten twice: filesize() reads PHP's stat cache, so the
 // second size would not be seen.
 file_put_contents( $dir . '/over.png', str_repeat( 'x', Icon_Fetch\MAX_ICON_BYTES + 1 ) );
@@ -503,7 +503,7 @@ unlink( $dir . '/icon.png' );
 echo "\nnginx snippet\n";
 // The only server config the plugin generates. The request handler answers paths relative
 // to the home URL, so on a subdirectory install rules written against the domain root match
-// paths this WordPress does not own — and the try_files fallback points at whatever sits at
+// paths this WordPress does not own, and the try_files fallback points at whatever sits at
 // the domain root instead of at this install's index.php.
 $root_snippet = Server_Config\get_nginx_snippet();
 
@@ -548,8 +548,8 @@ $rebased_rewrite = preg_match_all( '/^\s*rewrite \^\/blog\//m', $subdir_snippet 
 check( 'every rewrite is rebased too', $rebased_rewrite, $rewrites );
 
 // The shell installer writes the same block on hosts where WordPress cannot. It reads the
-// same file, so only the rebasing can drift — and a mismatch is a config that routes icons
-// to the wrong place on exactly the installs that need the flag.
+// same file, so only the rebasing can drift. A mismatch is a config that routes icons to
+// the wrong place on exactly the installs that need the flag.
 $installer = escapeshellarg( dirname( __DIR__ ) . '/bin/install-nginx-config.sh' );
 $blank     = tempnam( sys_get_temp_dir(), 'sif-nginx' );
 $shell     = (string) shell_exec( "bash {$installer} --target " . escapeshellarg( $blank ) . ' --base blog --dry-run 2>/dev/null' );
@@ -597,7 +597,7 @@ unset( $GLOBALS['__filters']['site_icon_fallback_reachability_cache_lifetime'] )
 
 echo "\nUninstall\n";
 // Run out of process: uninstall.php exits when WP_UNINSTALL_PLUGIN is absent, which would
-// otherwise take this runner with it — and that guard is the only thing standing between a
+// otherwise take this runner with it. That guard is the only thing standing between a
 // direct request for the file and a delete.
 $harness = escapeshellarg( __DIR__ . '/uninstall-harness.php' );
 
@@ -608,7 +608,7 @@ $uninstalled = json_decode( (string) shell_exec( "php {$harness} run 2>&1" ), tr
 check( 'the reachability transient is removed', $uninstalled['transients'] ?? null, [ Site_Health\REACHABILITY_TRANSIENT ] );
 
 // The plugin registers no activation hook and owns no option. Everything it stores is a
-// transient, and this is what keeps that true — the harness still stubs delete_site_option,
+// transient, and this is what keeps that true: the harness still stubs delete_site_option,
 // so an option creeping back in shows up here rather than in someone's database.
 check( 'no options are deleted, because none are written', $uninstalled['site_options'] ?? null, [] );
 check( 'one query sweeps the cached bytes', count( $uninstalled['queries'] ?? [] ), 1 );
@@ -630,7 +630,7 @@ unset( $_SERVER['HTTP_IF_NONE_MATCH'] );
 
 echo "\nCache lifetimes\n";
 // A redirect points at a URL that a Site Icon change deletes, so it must not be held as
-// long as the icon itself — that is what left stale 302s replaying into 404s.
+// long as the icon itself. That is what left stale 302s replaying into 404s.
 check( 'content cached for a day', SiteIconFallback\get_content_max_age(), DAY_IN_SECONDS );
 check( 'redirect cached briefly', SiteIconFallback\get_redirect_max_age(), 300 );
 check( 'redirect much shorter than content', SiteIconFallback\get_redirect_max_age() < SiteIconFallback\get_content_max_age(), true );
@@ -639,7 +639,7 @@ check( 'reachability result cached briefly', SiteIconFallback\get_reachability_c
 
 echo "\nActivation is gated on nginx\n";
 // Core fires the activation hook before it writes active_plugins, so a wp_die() here is the
-// whole mechanism — the plugin is simply never recorded as active.
+// whole mechanism: the plugin is simply never recorded as active.
 
 /** Run on_activation() and report whether it refused. */
 function refused(): bool {
@@ -661,7 +661,7 @@ $GLOBALS['is_nginx']        = false;
 check( 'a server that says it is not nginx is refused', refused(), true );
 
 // WP-CLI sets four $_SERVER keys and SERVER_SOFTWARE is not one of them, while core's
-// wp_fix_server_vars() defaults it to '' — so $is_nginx is false for every scripted
+// wp_fix_server_vars() defaults it to '', so $is_nginx is false for every scripted
 // activation, exactly as if the server had answered Apache. Refusing here would mean no
 // deploy could ever install this plugin.
 unset( $_SERVER['SERVER_SOFTWARE'] );
@@ -691,7 +691,7 @@ unset( $_SERVER['SERVER_SOFTWARE'] );
 
 echo "\nWP-CLI\n";
 // Nothing here loads WP-CLI, so these assert the guard that keeps the plugin from calling
-// into a class that is not there — every WP_CLI call in cli.php sits behind it.
+// into a class that is not there. Every WP_CLI call in cli.php sits behind it.
 check( 'not running under WP-CLI', CLI\is_running(), false );
 check( 'registering commands outside WP-CLI is a no-op', CLI\register_commands(), null );
 check( 'warning outside WP-CLI is a no-op', CLI\warn( 'unheard' ), null );
@@ -714,7 +714,7 @@ check( 'status is wired to its callable', $registered['commands']['site-icon-fal
 
 // format_items() is reached through `use WP_CLI;`, which resolves WP_CLI\Utils\ to the
 // global namespace. Written without that import it becomes CLI\WP_CLI\...,
-// which does not exist — and nothing here would say so except this.
+// which does not exist. Nothing here would say so except this.
 check( 'the format helper resolves to the global namespace', $registered['format'] ?? null, 'json' );
 check( 'every check is reported', count( $registered['rows'] ?? [] ), 4 );
 check( 'the Site Icon is found', $registered['rows'][0]['status'] ?? null, 'ok' );

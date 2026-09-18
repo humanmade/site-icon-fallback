@@ -4,7 +4,7 @@
 #
 # The cases that matter are the uncommitted and untracked ones. `git diff base...HEAD` alone
 # reports neither, and a check written that way passes a branch whose shipping changes are
-# simply not committed yet — which is the state a branch spends most of its life in.
+# simply not committed yet, which is the state a branch spends most of its life in.
 
 set -uo pipefail
 

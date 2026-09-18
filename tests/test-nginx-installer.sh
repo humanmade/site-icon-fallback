@@ -79,7 +79,7 @@ check 'removing twice is harmless' "$(count_markers "${target}")" '0'
 echo
 echo "Indented markers"
 # nginx config is nested, so a block pasted inside server {} arrives indented. Matching
-# markers by equality left it in place and appended a second copy — a duplicate location,
+# markers by equality left it in place and appended a second copy, a duplicate location,
 # which stops nginx booting.
 {
 	printf 'server {\n'

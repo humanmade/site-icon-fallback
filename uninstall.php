@@ -24,7 +24,7 @@ require_once __DIR__ . '/inc/site-health.php';
 // Site Icon core already owns, and it registers no activation or deactivation hook.
 delete_transient( Site_Health\REACHABILITY_TRANSIENT );
 
-// The cached icon bytes are keyed by a hash of the icon URL, so they cannot be named — only
+// The cached icon bytes are keyed by a hash of the icon URL, so they cannot be named, only
 // matched. A no-op under an external object cache, where transients never reach the options
 // table and expire in the cache instead.
 global $wpdb;

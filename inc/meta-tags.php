@@ -18,7 +18,7 @@ defined( 'ABSPATH' ) || exit;
  *
  * Every current iOS device maps to one of these. The legacy sizes in SUPPORTED_SIZES are
  * still answered at the root but not declared here, since a link tag costs bytes on every
- * page. Sizes resolving to the same image are collapsed — see get_declarable_icons().
+ * page. Sizes resolving to the same image are collapsed. See get_declarable_icons().
  */
 const DECLARED_SIZES = [ 120, 152, 167, 180 ];
 

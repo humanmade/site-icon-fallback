@@ -3,7 +3,7 @@
  * Runs uninstall.php against stubs and reports what it tried to delete.
  *
  * A subprocess rather than part of tests/test-routing.php, because the file's first act is
- * to exit when WP_UNINSTALL_PLUGIN is absent — which would take the test runner with it.
+ * to exit when WP_UNINSTALL_PLUGIN is absent, which would take the test runner with it.
  * Called with no argument, this harness leaves the constant undefined and so exercises that
  * guard; called with 'run', it defines it and records the deletions.
  */

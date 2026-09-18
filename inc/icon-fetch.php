@@ -72,7 +72,7 @@ const TYPE_SIGNATURES = [
  * The icon at a URL, as bytes plus content type.
  *
  * Reads from disk when the URL maps into the uploads directory, and falls back to HTTP
- * when it does not — the case wherever a CDN or image service rewrites the URL.
+ * when it does not, the case wherever a CDN or image service rewrites the URL.
  *
  * @param string $url  Site Icon URL.
  * @param int    $size Size in pixels the request resolved to.
@@ -136,7 +136,7 @@ function read_local_icon( string $url ): ?array {
  * Read the Site Icon from the attachment the `site_icon` option names.
  *
  * The URL-based read above cannot help wherever an image service rewrites the Site Icon URL,
- * because the rewritten URL no longer sits under the uploads base URL — and on those installs
+ * because the rewritten URL no longer sits under the uploads base URL, and on those installs
  * the bytes are still on disk. See CLAUDE.md: "The attachment is read before the network."
  *
  * @param int $size Size in pixels the request resolved to.
@@ -256,7 +256,7 @@ function get_servable_type( string $declared ): ?string {
 /**
  * The content type a body's own leading bytes identify it as.
  *
- * Consulted only when a response declares no type at all — some image services return the
+ * Consulted only when a response declares no type at all: some image services return the
  * bytes with no Content-Type header. See CLAUDE.md: "A response that declares no type is
  * sniffed, not refused."
  *

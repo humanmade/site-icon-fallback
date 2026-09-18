@@ -111,21 +111,33 @@ function status_command( array $args, array $assoc_args = [] ): void {
 	$software  = Server_Config\get_server_software();
 	$reachable = Site_Health\is_root_handler_reachable();
 
+	$icon_detail = $icon_url === ''
+		? __( 'not set in Settings → General', 'site-icon-fallback' )
+		: $icon_url;
+
+	$server_detail = $software === ''
+		? __( 'not reported (WP-CLI has no web server)', 'site-icon-fallback' )
+		: $software;
+
+	$reachable_detail = $reachable
+		? __( 'answered by this plugin', 'site-icon-fallback' )
+		: __( 'never reach WordPress: add the nginx rules', 'site-icon-fallback' );
+
 	$checks = [
 		[
 			'check'  => __( 'Site Icon', 'site-icon-fallback' ),
 			'status' => $icon_url === '' ? 'fail' : 'ok',
-			'detail' => $icon_url === '' ? __( 'not set in Settings → General', 'site-icon-fallback' ) : $icon_url,
+			'detail' => $icon_detail,
 		],
 		[
 			'check'  => __( 'Server', 'site-icon-fallback' ),
 			'status' => Server_Config\is_nginx() ? 'ok' : 'warn',
-			'detail' => $software === '' ? __( 'not reported (WP-CLI has no web server)', 'site-icon-fallback' ) : $software,
+			'detail' => $server_detail,
 		],
 		[
 			'check'  => __( 'Root icon requests', 'site-icon-fallback' ),
 			'status' => $reachable ? 'ok' : 'fail',
-			'detail' => $reachable ? __( 'answered by this plugin', 'site-icon-fallback' ) : __( 'never reach WordPress: add the nginx rules', 'site-icon-fallback' ),
+			'detail' => $reachable_detail,
 		],
 		[
 			'check'  => __( 'Serve mode', 'site-icon-fallback' ),
@@ -140,7 +152,7 @@ function status_command( array $args, array $assoc_args = [] ): void {
 		[ 'check', 'status', 'detail' ]
 	);
 
-	$has_failure = (bool) array_filter( $checks, static fn ( array $check ): bool => $check['status'] === 'fail' );
+	$has_failure = in_array( 'fail', array_column( $checks, 'status' ), true );
 
 	if ( $has_failure && ! empty( $assoc_args['strict'] ) ) {
 		WP_CLI::halt( 1 );

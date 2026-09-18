@@ -3,7 +3,7 @@
 # Exercises .github/strip-dev-files.sh against throwaway git repositories.
 #
 # The script decides what the release branch, the tag's source archive and the release zip
-# each contain, and it only ever runs for real on a push to main — a mistake here surfaces
+# each contain, and it only ever runs for real on a push to main. A mistake here surfaces
 # to whoever installs the plugin, not to CI. The case worth guarding is directory patterns:
 # `/tests export-ignore` prunes the whole directory in git archive but reports nothing
 # through git check-attr, so the plausible rewrite ships the test suite while still passing
@@ -36,7 +36,7 @@ trap 'rm -rf "${work}"' EXIT
 
 # Stands in for the tree the release build stages: plugin files that must ship, alongside
 # the development files that must not. Nothing is committed, because the script reads the
-# index rather than HEAD — which is also why this needs no git identity configured.
+# index rather than HEAD, which is also why this needs no git identity configured.
 make_repo() {
 	local dir="${work}/$1"
 

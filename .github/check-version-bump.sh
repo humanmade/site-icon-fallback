@@ -4,7 +4,7 @@
 #
 # tests/test-version.php asserts the four version locations agree; it cannot notice that
 # all four agree on the *old* number. Bumping nothing therefore passes every other check,
-# and the mistake surfaces only when a release is cut — on a merged branch, by hand.
+# and the mistake surfaces only when a release is cut (on a merged branch, by hand).
 # See CLAUDE.md: "Versioning".
 #
 # Usage: check-version-bump.sh [base-ref]        (default: main; CI passes origin/<base>)
@@ -57,7 +57,7 @@ version_gt() {
 }
 
 git rev-parse --verify --quiet "${BASE}" > /dev/null \
-	|| fail "base ref '${BASE}' not found — CI needs actions/checkout with fetch-depth: 0"
+	|| fail "base ref '${BASE}' not found. CI needs actions/checkout with fetch-depth: 0"
 
 base_version="$( git show "${BASE}:${PLUGIN_FILE}" | read_version )"
 head_version="$( read_version < "${PLUGIN_FILE}" )"
@@ -101,7 +101,7 @@ fi
 if [ "${head_version}" = "${base_version}" ]; then
 	printf 'error: these changes ship, but the version is still %s:\n' "${head_version}" >&2
 	sed 's/^/  /' "${shipping}" >&2
-	printf 'Bump all four locations — see CLAUDE.md: "Versioning".\n' >&2
+	printf 'Bump all four locations. See CLAUDE.md: "Versioning".\n' >&2
 	exit 1
 fi
 

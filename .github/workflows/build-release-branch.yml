@@ -24,5 +24,5 @@ jobs:
       built_asset_paths: ''
       # There is nothing to compile. The shared action runs this between staging main's
       # tree and committing it, which is the only point at which the release commit's
-      # contents can be narrowed — see .github/strip-dev-files.sh.
+      # contents can be narrowed. See .github/strip-dev-files.sh.
       build_script: bash .github/strip-dev-files.sh
