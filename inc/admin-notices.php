@@ -36,19 +36,13 @@ function render_missing_icon_notice(): void {
 
 	printf(
 		'<div class="notice notice-warning"><p>%s</p></div>',
-		wp_kses( $message, get_notice_allowed_html() )
+		wp_kses(
+			$message,
+			[
+				'strong' => [],
+				'code'   => [],
+				'a'      => [ 'href' => true ],
+			]
+		)
 	);
-}
-
-/**
- * Tags permitted inside a notice.
- *
- * @return array<string, array<string, bool>> Allowed HTML for wp_kses().
- */
-function get_notice_allowed_html(): array {
-	return [
-		'strong' => [],
-		'code'   => [],
-		'a'      => [ 'href' => true ],
-	];
 }

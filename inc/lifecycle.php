@@ -34,7 +34,7 @@ function on_activation(): void {
 	// real requests arrive.
 	if ( Server_Config\get_server_software() === '' ) {
 		CLI\warn(
-			__( 'Site Icon Fallback supports nginx only. No web server was available to check against, so activation went ahead — run `wp site-icon-fallback status` against the live site to confirm it works.', 'site-icon-fallback' )
+			__( 'Site Icon Fallback supports nginx only. No web server was available to check against, so activation went ahead. Run `wp site-icon-fallback status` against the live site to confirm it works.', 'site-icon-fallback' )
 		);
 
 		return;
@@ -44,7 +44,7 @@ function on_activation(): void {
 		wp_kses(
 			sprintf(
 				/* translators: %s: the site_icon_fallback_require_nginx filter name, in code tags. */
-				__( 'Site Icon Fallback only supports nginx, and this server reports itself as something else. If that is wrong — nginx proxying to Apache reports Apache — return false from the %s filter in an mu-plugin to activate anyway.', 'site-icon-fallback' ),
+				__( 'Site Icon Fallback only supports nginx, and this server reports itself as something else. If that is wrong (nginx proxying to Apache reports Apache), return false from the %s filter in an mu-plugin to activate anyway.', 'site-icon-fallback' ),
 				'<code>site_icon_fallback_require_nginx</code>'
 			),
 			[ 'code' => [] ]

@@ -72,53 +72,68 @@ function ajax_reachability_test(): void {
  * @return array<string, mixed> Site Health result.
  */
 function run_reachability_test(): array {
-	$result = [
-		'label'       => __( 'Root icon requests reach WordPress', 'site-icon-fallback' ),
-		'status'      => 'good',
+	if ( SiteIconFallback\get_icon_url( SiteIconFallback\DEFAULT_TOUCH_ICON_SIZE ) === '' ) {
+		return build_result(
+			'recommended',
+			__( 'No Site Icon is set', 'site-icon-fallback' ),
+			esc_html__(
+				'Root icon requests reach WordPress, but there is no Site Icon to serve, so they return a 404. Set a Site Icon to fix this.',
+				'site-icon-fallback'
+			),
+			sprintf(
+				'<p><a href="%s">%s</a></p>',
+				esc_url( admin_url( 'options-general.php' ) ),
+				esc_html__( 'Set a Site Icon', 'site-icon-fallback' )
+			)
+		);
+	}
+
+	if ( ! is_root_handler_reachable() ) {
+		return build_result(
+			'recommended',
+			__( 'Root icon requests do not reach WordPress', 'site-icon-fallback' ),
+			esc_html__(
+				'Your web server answers /apple-touch-icon.png itself instead of passing it to WordPress, so Safari, Applebot and link unfurlers get a 404. Add the nginx rules below to your server block to fix this.',
+				'site-icon-fallback'
+			),
+			sprintf(
+				'<pre style="overflow:auto;padding:1em;background:#f6f7f7;">%s</pre>',
+				esc_html( Server_Config\get_nginx_snippet() )
+			)
+		);
+	}
+
+	return build_result(
+		'good',
+		__( 'Root icon requests reach WordPress', 'site-icon-fallback' ),
+		esc_html__(
+			'Requests for /apple-touch-icon.png and /favicon.ico reach WordPress and are answered from your Site Icon.',
+			'site-icon-fallback'
+		)
+	);
+}
+
+/**
+ * Assemble one Site Health result.
+ *
+ * @param string $status      Site Health status, 'good' or 'recommended'.
+ * @param string $label       Heading for the result.
+ * @param string $description Escaped description text, wrapped in a paragraph here.
+ * @param string $actions     Escaped action markup, or an empty string.
+ * @return array<string, mixed> Site Health result.
+ */
+function build_result( string $status, string $label, string $description, string $actions = '' ): array {
+	return [
+		'label'       => $label,
+		'status'      => $status,
 		'badge'       => [
 			'label' => __( 'Site Icon', 'site-icon-fallback' ),
 			'color' => 'blue',
 		],
-		'description' => '<p>' . esc_html__(
-			'Requests for /apple-touch-icon.png and /favicon.ico reach WordPress and are answered from your Site Icon.',
-			'site-icon-fallback'
-		) . '</p>',
-		'actions'     => '',
+		'description' => '<p>' . $description . '</p>',
+		'actions'     => $actions,
 		'test'        => TEST_SLUG,
 	];
-
-	if ( SiteIconFallback\get_icon_url( SiteIconFallback\DEFAULT_TOUCH_ICON_SIZE ) === '' ) {
-		$result['status']      = 'recommended';
-		$result['label']       = __( 'No Site Icon is set', 'site-icon-fallback' );
-		$result['description'] = '<p>' . esc_html__(
-			'Root icon requests reach WordPress, but there is no Site Icon to serve, so they return a 404. Set a Site Icon to fix this.',
-			'site-icon-fallback'
-		) . '</p>';
-		$result['actions']     = sprintf(
-			'<p><a href="%s">%s</a></p>',
-			esc_url( admin_url( 'options-general.php' ) ),
-			esc_html__( 'Set a Site Icon', 'site-icon-fallback' )
-		);
-
-		return $result;
-	}
-
-	if ( is_root_handler_reachable() ) {
-		return $result;
-	}
-
-	$result['status']      = 'recommended';
-	$result['label']       = __( 'Root icon requests do not reach WordPress', 'site-icon-fallback' );
-	$result['description'] = '<p>' . esc_html__(
-		'Your web server answers /apple-touch-icon.png itself instead of passing it to WordPress, so Safari, Applebot and link unfurlers get a 404. Add the nginx rules below to your server block to fix this.',
-		'site-icon-fallback'
-	) . '</p>';
-	$result['actions']     = sprintf(
-		'<pre style="overflow:auto;padding:1em;background:#f6f7f7;">%s</pre>',
-		esc_html( Server_Config\get_nginx_snippet() )
-	);
-
-	return $result;
 }
 
 /**
@@ -148,7 +163,7 @@ function is_root_handler_reachable(): bool {
 	$reachable = ! is_wp_error( $response )
 		&& wp_remote_retrieve_header( $response, strtolower( SiteIconFallback\MARKER_HEADER ) ) !== '';
 
-	set_transient( REACHABILITY_TRANSIENT, $reachable ? 'yes' : 'no', 5 * MINUTE_IN_SECONDS );
+	set_transient( REACHABILITY_TRANSIENT, $reachable ? 'yes' : 'no', SiteIconFallback\get_reachability_cache_lifetime() );
 
 	return $reachable;
 }
