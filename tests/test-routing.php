@@ -25,14 +25,8 @@ function trailingslashit( $s ) { return rtrim( (string) $s, '/\\' ) . '/'; }
 function esc_url( $u ) { return $u; }
 function add_filter( ...$a ) {}
 function add_action( ...$a ) {}
-function wp_upload_dir() {
-	return $GLOBALS['__uploads'];
-}
-
-function is_wp_error( $t ) {
-	return false;
-}
-
+function wp_upload_dir() { return $GLOBALS['__uploads']; }
+function is_wp_error( $t ) { return false; }
 function __( $s, $d = '' ) { return $s; }
 function esc_html__( $s, $d = '' ) { return $s; }
 function esc_html( $s ) { return $s; }
@@ -111,7 +105,7 @@ function apply_filters( $tag, $value, ...$args ) {
 }
 
 /**
- * When __generated is null, every size resolves to its own URL — an image service.
+ * When __generated is null, every size resolves to its own URL (an image service).
  * When it is a list of generated sizes, the smallest one at least as large wins, which is
  * what core's image_get_intermediate_size() does.
  *
@@ -167,24 +161,33 @@ require_once $base . '/cli.php';
 require_once $base . '/lifecycle.php';
 require_once $base . '/site-health.php';
 
-use function SiteIconFallback\Root_Handler\get_request_path;
-use function SiteIconFallback\Root_Handler\resolve_touch_icon_size;
-use function SiteIconFallback\Meta_Tags\filter_meta_tags;
-use function SiteIconFallback\Root_Handler\get_serve_mode;
+use SiteIconFallback\CLI;
+use SiteIconFallback\Icon_Fetch;
+use SiteIconFallback\Lifecycle;
+use SiteIconFallback\Meta_Tags;
+use SiteIconFallback\Root_Handler;
+use SiteIconFallback\Server_Config;
+use SiteIconFallback\Site_Health;
 use function SiteIconFallback\Icon_Fetch\read_local_icon;
 use function SiteIconFallback\Icon_Stream\get_if_none_match;
+use function SiteIconFallback\Meta_Tags\filter_meta_tags;
+use function SiteIconFallback\Root_Handler\get_request_path;
+use function SiteIconFallback\Root_Handler\get_serve_mode;
+use function SiteIconFallback\Root_Handler\resolve_touch_icon_size;
 
 $pass = 0;
 $fail = 0;
 
 function check( string $label, $actual, $expected ): void {
 	global $pass, $fail;
+
 	if ( $actual === $expected ) {
-		$pass++;
+		++$pass;
 		printf( "  ok    %s\n", $label );
 		return;
 	}
-	$fail++;
+
+	++$fail;
 	printf( "  FAIL  %s\n        expected %s, got %s\n", $label, var_export( $expected, true ), var_export( $actual, true ) );
 }
 
@@ -193,12 +196,14 @@ function route( string $uri ): ?int {
 	$_SERVER['REQUEST_URI'] = $uri;
 	$path = get_request_path();
 
-	if ( preg_match( SiteIconFallback\Root_Handler\TOUCH_ICON_PATTERN, $path, $m ) === 1 ) {
+	if ( preg_match( Root_Handler\TOUCH_ICON_PATTERN, $path, $m ) === 1 ) {
 		return resolve_touch_icon_size( $m );
 	}
-	if ( preg_match( SiteIconFallback\Root_Handler\FAVICON_PATTERN, $path ) === 1 ) {
+
+	if ( preg_match( Root_Handler\FAVICON_PATTERN, $path ) === 1 ) {
 		return SiteIconFallback\FAVICON_SIZE;
 	}
+
 	return null;
 }
 
@@ -238,6 +243,11 @@ check( 'subdir root icon -> 180', route( '/blog/apple-touch-icon.png' ), 180 );
 check( 'subdir favicon -> 180', route( '/blog/favicon.ico' ), 180 );
 $GLOBALS['__home_url'] = 'https://example.com/';
 
+/** The apple-touch-icon tags in a head, which is what every meta tag case counts. */
+function touch_icon_tags( array $tags ): array {
+	return array_values( array_filter( $tags, fn( $tag ) => str_contains( $tag, 'apple-touch-icon' ) ) );
+}
+
 echo "\nMeta tags\n";
 $core_tags = [
 	'<link rel="icon" href="https://cdn.example.com/icon.png?size=32" sizes="32x32" />',
@@ -246,16 +256,16 @@ $core_tags = [
 	'<meta name="msapplication-TileImage" content="https://cdn.example.com/icon.png?size=270" />',
 ];
 $filtered = filter_meta_tags( $core_tags );
-$touch    = array_values( array_filter( $filtered, fn( $t ) => str_contains( $t, 'apple-touch-icon' ) ) );
+$touch    = touch_icon_tags( $filtered );
 
-check( 'core bare touch-icon tag removed', (int) ( count( array_filter( $filtered, fn( $t ) => $t === $core_tags[2] ) ) ), 0 );
+check( 'core bare touch-icon tag removed', count( array_filter( $filtered, fn( $tag ) => $tag === $core_tags[2] ) ), 0 );
 check( 'four sized touch-icon tags emitted', count( $touch ), 4 );
 check( 'non-touch tags preserved', count( $filtered ) - count( $touch ), 3 );
 check( 'sizes attribute present', str_contains( $touch[0], 'sizes="120x120"' ), true );
 
 echo "\nNo Site Icon set\n";
 $GLOBALS['__site_icon'] = '';
-check( 'no touch-icon tags emitted', count( array_filter( filter_meta_tags( $core_tags ), fn( $t ) => str_contains( $t, 'apple-touch-icon' ) ) ), 0 );
+check( 'no touch-icon tags emitted', count( touch_icon_tags( filter_meta_tags( $core_tags ) ) ), 0 );
 $GLOBALS['__site_icon'] = 'https://cdn.example.com/icon.png';
 
 echo "\nSite Icon set to a deleted attachment\n";
@@ -263,8 +273,8 @@ echo "\nSite Icon set to a deleted attachment\n";
 // passed a bool into a string parameter under strict_types, fatalling on /favicon.ico.
 $GLOBALS['__site_icon'] = false;
 check( 'false normalises to an empty string', SiteIconFallback\get_icon_url( 180 ), '' );
-check( 'nothing is declarable', SiteIconFallback\Meta_Tags\get_declarable_icons( [ 120, 180 ] ), [] );
-check( 'no touch-icon tags emitted', count( array_filter( filter_meta_tags( $core_tags ), fn( $t ) => str_contains( $t, 'apple-touch-icon' ) ) ), 0 );
+check( 'nothing is declarable', Meta_Tags\get_declarable_icons( [ 120, 180 ] ), [] );
+check( 'no touch-icon tags emitted', count( touch_icon_tags( filter_meta_tags( $core_tags ) ) ), 0 );
 $GLOBALS['__site_icon'] = 'https://cdn.example.com/icon.png';
 check( 'a real icon still resolves', SiteIconFallback\get_icon_url( 180 ), 'https://cdn.example.com/icon.png?size=180' );
 
@@ -272,7 +282,7 @@ echo "\nSize dedupe against core's four generated derivatives\n";
 // What WordPress actually generates: 32, 180, 192, 270. No image service.
 $GLOBALS['__generated'] = [ 32, 180, 192, 270 ];
 
-$collapsed = SiteIconFallback\Meta_Tags\get_declarable_icons( [ 120, 152, 167, 180 ] );
+$collapsed = Meta_Tags\get_declarable_icons( [ 120, 152, 167, 180 ] );
 check( 'four sizes collapse to one tag', count( $collapsed ), 1 );
 check( 'kept size is the largest of the group', array_key_first( $collapsed ), 180 );
 check( 'kept URL is the real 180 derivative', reset( $collapsed ), 'https://cdn.example.com/icon.png-180.png' );
@@ -283,18 +293,19 @@ check( 'kept URL is the real 180 derivative', reset( $collapsed ), 'https://cdn.
 check( 'the favicon size is one core generates', in_array( SiteIconFallback\FAVICON_SIZE, $GLOBALS['__generated'], true ), true );
 check( 'and it resolves to that exact derivative', SiteIconFallback\get_icon_url( SiteIconFallback\FAVICON_SIZE ), 'https://cdn.example.com/icon.png-180.png' );
 
-$mixed = SiteIconFallback\Meta_Tags\get_declarable_icons( [ 120, 192 ] );
+$mixed = Meta_Tags\get_declarable_icons( [ 120, 192 ] );
 check( 'distinct derivatives stay separate', count( $mixed ), 2 );
 check( 'sizes preserved across distinct files', array_keys( $mixed ), [ 120, 192 ] );
 
-$head = filter_meta_tags( $core_tags );
-check( 'head carries one touch-icon tag, not four', count( array_filter( $head, fn( $t ) => str_contains( $t, 'apple-touch-icon' ) ) ), 1 );
+check( 'head carries one touch-icon tag, not four', count( touch_icon_tags( filter_meta_tags( $core_tags ) ) ), 1 );
 
 // Back to an image service, where every size resolves exactly.
 $GLOBALS['__generated'] = null;
-check( 'image service still declares all four', count( SiteIconFallback\Meta_Tags\get_declarable_icons( [ 120, 152, 167, 180 ] ) ), 4 );
-check( 'no Site Icon yields nothing to declare', ( function () { $GLOBALS['__site_icon'] = ''; $r = SiteIconFallback\Meta_Tags\get_declarable_icons( [ 180 ] ); $GLOBALS['__site_icon'] = 'https://cdn.example.com/icon.png'; return $r; } )(), [] );
-check( 'zero and negative sizes ignored', SiteIconFallback\Meta_Tags\get_declarable_icons( [ 0, -5 ] ), [] );
+check( 'image service still declares all four', count( Meta_Tags\get_declarable_icons( [ 120, 152, 167, 180 ] ) ), 4 );
+$GLOBALS['__site_icon'] = '';
+check( 'no Site Icon yields nothing to declare', Meta_Tags\get_declarable_icons( [ 180 ] ), [] );
+$GLOBALS['__site_icon'] = 'https://cdn.example.com/icon.png';
+check( 'zero and negative sizes ignored', Meta_Tags\get_declarable_icons( [ 0, -5 ] ), [] );
 
 echo "\nServe mode\n";
 check( 'defaults to stream', get_serve_mode(), 'stream' );
@@ -324,11 +335,11 @@ check( 'traversal outside uploads rejected', read_local_icon( 'https://evil.test
 echo "\nOversized local icons\n";
 // The cap is only worth having if it applies to the common path. A Site Icon set with
 // `wp option update site_icon <id>` never generates the site_icon-* derivatives, so the
-// URL resolves to the full-size original — which for a site icon is at least 512x512.
+// URL resolves to the full-size original, which for a site icon is at least 512x512.
 // Two files rather than one rewritten twice: filesize() reads PHP's stat cache, so the
 // second size would not be seen.
-file_put_contents( $dir . '/over.png', str_repeat( 'x', SiteIconFallback\Icon_Fetch\MAX_ICON_BYTES + 1 ) );
-file_put_contents( $dir . '/at.png', str_repeat( 'x', SiteIconFallback\Icon_Fetch\MAX_ICON_BYTES ) );
+file_put_contents( $dir . '/over.png', str_repeat( 'x', Icon_Fetch\MAX_ICON_BYTES + 1 ) );
+file_put_contents( $dir . '/at.png', str_repeat( 'x', Icon_Fetch\MAX_ICON_BYTES ) );
 
 check( 'a file over the cap is refused', read_local_icon( 'https://example.com/wp-content/uploads/2018/12/over.png' ) === null, true );
 check( 'a file exactly at the cap is still read', is_array( read_local_icon( 'https://example.com/wp-content/uploads/2018/12/at.png' ) ), true );
@@ -354,45 +365,45 @@ check( 'ico is served', is_array( $ico ) ? $ico['type'] : null, 'image/x-icon' )
 $GLOBALS['__filetype'] = [ 'type' => 'image/png', 'ext' => 'png' ];
 
 $GLOBALS['__http'] = [ 'code' => 200, 'body' => $png, 'type' => 'text/html; charset=UTF-8' ];
-check( "an image CDN's HTML error page is refused", SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
+check( "an image CDN's HTML error page is refused", Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
 
 $GLOBALS['__http']['type'] = 'IMAGE/PNG; charset=binary';
-$negotiated = SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' );
+$negotiated = Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' );
 check( 'parameters are stripped and the type lowercased', is_array( $negotiated ) ? $negotiated['type'] : null, 'image/png' );
-check( 'the response body is capped before it is read', $GLOBALS['__http_args']['limit_response_size'] ?? null, SiteIconFallback\Icon_Fetch\MAX_ICON_BYTES + 1 );
+check( 'the response body is capped before it is read', $GLOBALS['__http_args']['limit_response_size'] ?? null, Icon_Fetch\MAX_ICON_BYTES + 1 );
 
 // Declaring nothing is not the same claim as declaring something refused. Altis Tachyon
 // answers image requests with a 200, the real bytes, and no Content-Type header at all, so
 // treating the two alike costs the byte path on every install sitting behind it.
 $GLOBALS['__http'] = [ 'code' => 200, 'body' => $png, 'type' => '' ];
-$undeclared = SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' );
+$undeclared = Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' );
 check( 'an undeclared type is recognised from the bytes', is_array( $undeclared ) ? $undeclared['type'] : null, 'image/png' );
 
 // What keeps the allow-list intact: sniffing can only ever name a type already in it, and
 // none of the things the list exists to refuse carry an image signature.
 $GLOBALS['__http']['body'] = '<!DOCTYPE html><html><body>404 Not Found</body></html>';
-check( 'an undeclared HTML error page is still refused', SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
+check( 'an undeclared HTML error page is still refused', Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
 
 $GLOBALS['__http']['body'] = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
-check( 'an undeclared SVG is still refused', SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
+check( 'an undeclared SVG is still refused', Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
 
 $GLOBALS['__http']['body'] = "\x00\x00\x01\x00\x01\x00\x10\x10";
-$sniffed_ico = SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.ico' );
+$sniffed_ico = Icon_Fetch\request_icon( 'https://cdn.example.com/icon.ico' );
 check( 'an undeclared ico is recognised', is_array( $sniffed_ico ) ? $sniffed_ico['type'] : null, 'image/x-icon' );
 
 // RIFF and ISO base media containers name their format in a later field, so a signature
 // compared at byte zero cannot tell a WebP from any other RIFF file.
 $GLOBALS['__http']['body'] = 'RIFF' . "\x24\x00\x00\x00" . 'WEBPVP8 ';
-$sniffed_webp = SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' );
+$sniffed_webp = Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' );
 check( 'an undeclared webp is recognised past its container header', is_array( $sniffed_webp ) ? $sniffed_webp['type'] : null, 'image/webp' );
 
 $GLOBALS['__http']['body'] = 'RIFF' . "\x24\x00\x00\x00" . 'WAVEfmt ';
-check( 'a RIFF container that is not an image is refused', SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
+check( 'a RIFF container that is not an image is refused', Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
 
 // A declared type is still the one that counts. Sniffing is the fallback for silence, not
 // a second opinion on an answer already given.
 $GLOBALS['__http'] = [ 'code' => 200, 'body' => $png, 'type' => 'text/html; charset=UTF-8' ];
-check( 'a declared type is not overridden by the bytes', SiteIconFallback\Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
+check( 'a declared type is not overridden by the bytes', Icon_Fetch\request_icon( 'https://cdn.example.com/icon.png' ), null );
 
 echo "\nFailed fetches are not retried on every request\n";
 // Every miss otherwise costs a blocking three-second request, and the traffic on these
@@ -402,23 +413,35 @@ $GLOBALS['__http']       = [ 'code' => 0, 'body' => '', 'type' => '' ];
 $GLOBALS['__http_calls'] = 0;
 
 $gone     = 'https://cdn.example.com/gone.png';
-$gone_key = SiteIconFallback\Icon_Fetch\BYTES_TRANSIENT_PREFIX . md5( $gone );
+$gone_key = Icon_Fetch\BYTES_TRANSIENT_PREFIX . md5( $gone );
 
-check( 'a failed fetch returns null', SiteIconFallback\Icon_Fetch\fetch_icon( $gone, 180 ), null );
+check( 'a failed fetch returns null', Icon_Fetch\fetch_icon( $gone, 180 ), null );
 check( 'one request was made', $GLOBALS['__http_calls'], 1 );
-check( 'the next call also returns null', SiteIconFallback\Icon_Fetch\fetch_icon( $gone, 180 ), null );
+check( 'the next call also returns null', Icon_Fetch\fetch_icon( $gone, 180 ), null );
 check( 'the request was not repeated', $GLOBALS['__http_calls'], 1 );
 check( 'the failure is held for less time than the icon', ( $GLOBALS['__transients'][ $gone_key ]['ttl'] ?? 0 ) < SiteIconFallback\get_content_max_age(), true );
 
 $GLOBALS['__http'] = [ 'code' => 200, 'body' => $png, 'type' => 'image/png' ];
 $good     = 'https://cdn.example.com/good.png';
-$good_key = SiteIconFallback\Icon_Fetch\BYTES_TRANSIENT_PREFIX . md5( $good );
+$good_key = Icon_Fetch\BYTES_TRANSIENT_PREFIX . md5( $good );
 
-check( 'a successful fetch returns the bytes', ( SiteIconFallback\Icon_Fetch\fetch_icon( $good, 180 )['body'] ?? null ), $png );
+check( 'a successful fetch returns the bytes', ( Icon_Fetch\fetch_icon( $good, 180 )['body'] ?? null ), $png );
 check( 'and is cached for the content lifetime', $GLOBALS['__transients'][ $good_key ]['ttl'] ?? null, SiteIconFallback\get_content_max_age() );
 check( 'two requests in total', $GLOBALS['__http_calls'], 2 );
-check( 'a cached icon is served from the cache', ( SiteIconFallback\Icon_Fetch\fetch_icon( $good, 180 )['body'] ?? null ), $png );
+check( 'a cached icon is served from the cache', ( Icon_Fetch\fetch_icon( $good, 180 )['body'] ?? null ), $png );
 check( 'with no further request', $GLOBALS['__http_calls'], 2 );
+
+/**
+ * The bytes fetch_icon() returns with the cache emptied first.
+ *
+ * Every case below asserts which file the size resolved to, so each one has to resolve it
+ * again rather than read back what the previous case stored.
+ */
+function uncached_icon_bytes( string $url, int $size ): ?string {
+	$GLOBALS['__transients'] = [];
+
+	return Icon_Fetch\fetch_icon( $url, $size )['body'] ?? null;
+}
 
 echo "\nReading the icon from its attachment\n";
 // The case this exists for: an image service has rewritten the Site Icon URL off the uploads
@@ -449,32 +472,26 @@ $GLOBALS['__attachment']           = [
 
 $rewritten = 'https://example.com/tachyon/2026/08/favicon.png?fit=180,180';
 
-check( 'a rewritten URL is served from disk', ( SiteIconFallback\Icon_Fetch\fetch_icon( $rewritten, 180 )['body'] ?? null ), $png . '180' );
+check( 'a rewritten URL is served from disk', uncached_icon_bytes( $rewritten, 180 ), $png . '180' );
 check( 'with no HTTP request at all', $GLOBALS['__http_calls'], 0 );
 
-$GLOBALS['__transients'] = [];
-check( 'a smaller size takes the next derivative up', ( SiteIconFallback\Icon_Fetch\fetch_icon( $rewritten . '&a', 120 )['body'] ?? null ), $png . '180' );
-$GLOBALS['__transients'] = [];
-check( 'an exact size takes its own derivative', ( SiteIconFallback\Icon_Fetch\fetch_icon( $rewritten . '&b', 192 )['body'] ?? null ), $png . '192' );
-$GLOBALS['__transients'] = [];
-check( 'a size above every derivative falls back to the original', ( SiteIconFallback\Icon_Fetch\fetch_icon( $rewritten . '&c', 270 )['body'] ?? null ), $png . 'full' );
+check( 'a smaller size takes the next derivative up', uncached_icon_bytes( $rewritten, 120 ), $png . '180' );
+check( 'an exact size takes its own derivative', uncached_icon_bytes( $rewritten, 192 ), $png . '192' );
+check( 'a size above every derivative falls back to the original', uncached_icon_bytes( $rewritten, 270 ), $png . 'full' );
 check( 'and none of that touched the network', $GLOBALS['__http_calls'], 0 );
 
 // Precedence: a URL that does map into uploads is still read by URL, so the existing path is
 // unchanged wherever it already worked.
-$GLOBALS['__transients'] = [];
-check( 'an uploads URL still wins over the attachment', ( SiteIconFallback\Icon_Fetch\fetch_icon( 'https://example.com/wp-content/uploads/2018/12/icon.png', 180 )['body'] ?? null ), $png );
+check( 'an uploads URL still wins over the attachment', uncached_icon_bytes( 'https://example.com/wp-content/uploads/2018/12/icon.png', 180 ), $png );
 
-$GLOBALS['__transients']           = [];
 $GLOBALS['__options']['site_icon'] = 0;
 $GLOBALS['__http']                 = [ 'code' => 200, 'body' => $png, 'type' => 'image/png' ];
-check( 'without the option the network is still used', ( SiteIconFallback\Icon_Fetch\fetch_icon( $rewritten, 180 )['body'] ?? null ), $png );
+check( 'without the option the network is still used', uncached_icon_bytes( $rewritten, 180 ), $png );
 check( 'and that took a request', $GLOBALS['__http_calls'], 1 );
 
-$GLOBALS['__transients']           = [];
 $GLOBALS['__options']['site_icon'] = 7;
 $GLOBALS['__attached']             = '';
-check( 'an attachment with no file on disk falls through', ( SiteIconFallback\Icon_Fetch\fetch_icon( $rewritten, 180 )['body'] ?? null ), $png );
+check( 'an attachment with no file on disk falls through', uncached_icon_bytes( $rewritten, 180 ), $png );
 check( 'which also took a request', $GLOBALS['__http_calls'], 2 );
 
 $GLOBALS['__options']['site_icon'] = 0;
@@ -486,9 +503,9 @@ unlink( $dir . '/icon.png' );
 echo "\nnginx snippet\n";
 // The only server config the plugin generates. The request handler answers paths relative
 // to the home URL, so on a subdirectory install rules written against the domain root match
-// paths this WordPress does not own — and the try_files fallback points at whatever sits at
+// paths this WordPress does not own, and the try_files fallback points at whatever sits at
 // the domain root instead of at this install's index.php.
-$root_snippet = SiteIconFallback\Server_Config\get_nginx_snippet();
+$root_snippet = Server_Config\get_nginx_snippet();
 
 check( 'root install is left alone', str_contains( $root_snippet, 'location ~ ^/apple-touch-icon' ), true );
 check( 'root install falls back to its own index.php', str_contains( $root_snippet, 'try_files $uri /index.php?$args;' ), true );
@@ -505,7 +522,7 @@ check( 'favicon.ico is rewritten past an exact-match location', str_contains( $r
 check( 'the rewrite is guarded so a real file wins', str_contains( $root_snippet, 'if ( !-f $request_filename ) {' ), true );
 
 $GLOBALS['__home_url'] = 'https://example.com/blog/';
-$subdir_snippet        = SiteIconFallback\Server_Config\get_nginx_snippet();
+$subdir_snippet        = Server_Config\get_nginx_snippet();
 
 check( 'subdirectory locations carry the base', str_contains( $subdir_snippet, 'location ~ ^/blog/apple-touch-icon' ), true );
 check( 'subdirectory favicon location carries the base', str_contains( $subdir_snippet, 'location ~ ^/blog/favicon' ), true );
@@ -531,8 +548,8 @@ $rebased_rewrite = preg_match_all( '/^\s*rewrite \^\/blog\//m', $subdir_snippet 
 check( 'every rewrite is rebased too', $rebased_rewrite, $rewrites );
 
 // The shell installer writes the same block on hosts where WordPress cannot. It reads the
-// same file, so only the rebasing can drift — and a mismatch is a config that routes icons
-// to the wrong place on exactly the installs that need the flag.
+// same file, so only the rebasing can drift. A mismatch is a config that routes icons to
+// the wrong place on exactly the installs that need the flag.
 $installer = escapeshellarg( dirname( __DIR__ ) . '/bin/install-nginx-config.sh' );
 $blank     = tempnam( sys_get_temp_dir(), 'sif-nginx' );
 $shell     = (string) shell_exec( "bash {$installer} --target " . escapeshellarg( $blank ) . ' --base blog --dry-run 2>/dev/null' );
@@ -549,25 +566,38 @@ echo "\nSite Health registration\n";
 // Direct tests run inline while the Site Health page renders, and this one makes a loopback
 // request with a three-second timeout. Core registers its own loopback test as async for
 // the same reason.
-$tests = SiteIconFallback\Site_Health\register_site_health_test( [ 'direct' => [], 'async' => [] ] );
+$tests = Site_Health\register_site_health_test( [ 'direct' => [], 'async' => [] ] );
 
-check( 'the test is async', array_keys( $tests['async'] ), [ SiteIconFallback\Site_Health\TEST_SLUG ] );
+check( 'the test is async', array_keys( $tests['async'] ), [ Site_Health\TEST_SLUG ] );
 check( 'nothing is registered as direct', $tests['direct'], [] );
-check( 'cron has a way to run it', is_callable( $tests['async'][ SiteIconFallback\Site_Health\TEST_SLUG ]['async_direct_test'] ), true );
+check( 'cron has a way to run it', is_callable( $tests['async'][ Site_Health\TEST_SLUG ]['async_direct_test'] ), true );
 
 // Site Health's JavaScript builds the Ajax action as 'health-check-' + test.replace('_','-'),
 // and a string argument to replace() swaps only the first match. A slug with two underscores
 // would therefore be asked for under a name we never registered, and the test would spin
 // forever in the browser.
-$slug     = $tests['async'][ SiteIconFallback\Site_Health\TEST_SLUG ]['test'];
+$slug     = $tests['async'][ Site_Health\TEST_SLUG ]['test'];
 $js_built = 'health-check-' . preg_replace( '/_/', '-', $slug, 1 );
 
-check( 'the action Site Health calls is the one we register', $js_built, SiteIconFallback\Site_Health\AJAX_ACTION );
-check( 'the result identifies the same test', SiteIconFallback\Site_Health\run_reachability_test()['test'], $slug );
+check( 'the action Site Health calls is the one we register', $js_built, Site_Health\AJAX_ACTION );
+check( 'the result identifies the same test', Site_Health\run_reachability_test()['test'], $slug );
+
+// The reachability transient's lifetime comes from the same filterable helper the other
+// cache lifetimes use, not a literal buried in the loopback check.
+$GLOBALS['__http']['type'] = 'stream';
+$GLOBALS['__transients']   = [];
+Site_Health\is_root_handler_reachable();
+check( 'the reachability result is cached for the default lifetime', $GLOBALS['__transients'][ Site_Health\REACHABILITY_TRANSIENT ]['ttl'] ?? null, SiteIconFallback\get_reachability_cache_lifetime() );
+
+$GLOBALS['__filters']['site_icon_fallback_reachability_cache_lifetime'] = 60;
+$GLOBALS['__transients'] = [];
+Site_Health\is_root_handler_reachable();
+check( 'and the filter changes how long it is cached for', $GLOBALS['__transients'][ Site_Health\REACHABILITY_TRANSIENT ]['ttl'] ?? null, 60 );
+unset( $GLOBALS['__filters']['site_icon_fallback_reachability_cache_lifetime'] );
 
 echo "\nUninstall\n";
 // Run out of process: uninstall.php exits when WP_UNINSTALL_PLUGIN is absent, which would
-// otherwise take this runner with it — and that guard is the only thing standing between a
+// otherwise take this runner with it. That guard is the only thing standing between a
 // direct request for the file and a delete.
 $harness = escapeshellarg( __DIR__ . '/uninstall-harness.php' );
 
@@ -575,10 +605,10 @@ check( 'nothing happens without WP_UNINSTALL_PLUGIN', trim( (string) shell_exec(
 
 $uninstalled = json_decode( (string) shell_exec( "php {$harness} run 2>&1" ), true );
 
-check( 'the reachability transient is removed', $uninstalled['transients'] ?? null, [ SiteIconFallback\Site_Health\REACHABILITY_TRANSIENT ] );
+check( 'the reachability transient is removed', $uninstalled['transients'] ?? null, [ Site_Health\REACHABILITY_TRANSIENT ] );
 
 // The plugin registers no activation hook and owns no option. Everything it stores is a
-// transient, and this is what keeps that true — the harness still stubs delete_site_option,
+// transient, and this is what keeps that true: the harness still stubs delete_site_option,
 // so an option creeping back in shows up here rather than in someone's database.
 check( 'no options are deleted, because none are written', $uninstalled['site_options'] ?? null, [] );
 check( 'one query sweeps the cached bytes', count( $uninstalled['queries'] ?? [] ), 1 );
@@ -587,7 +617,7 @@ check( 'one query sweeps the cached bytes', count( $uninstalled['queries'] ?? []
 // underscores. Unescaped, the sweep matches option names that are not ours.
 $query = $uninstalled['queries'][0] ?? '';
 
-check( 'the bytes prefix is matched', str_contains( $query, str_replace( '_', '\\_', SiteIconFallback\Icon_Fetch\BYTES_TRANSIENT_PREFIX ) ), true );
+check( 'the bytes prefix is matched', str_contains( $query, str_replace( '_', '\\_', Icon_Fetch\BYTES_TRANSIENT_PREFIX ) ), true );
 check( 'the LIKE patterns are escaped', str_contains( $query, "'_transient_" ), false );
 check( 'timeouts go too', substr_count( $query, 'LIKE' ), 2 );
 
@@ -600,20 +630,21 @@ unset( $_SERVER['HTTP_IF_NONE_MATCH'] );
 
 echo "\nCache lifetimes\n";
 // A redirect points at a URL that a Site Icon change deletes, so it must not be held as
-// long as the icon itself — that is what left stale 302s replaying into 404s.
+// long as the icon itself. That is what left stale 302s replaying into 404s.
 check( 'content cached for a day', SiteIconFallback\get_content_max_age(), DAY_IN_SECONDS );
 check( 'redirect cached briefly', SiteIconFallback\get_redirect_max_age(), 300 );
 check( 'redirect much shorter than content', SiteIconFallback\get_redirect_max_age() < SiteIconFallback\get_content_max_age(), true );
 check( 'missing cached briefly', SiteIconFallback\get_missing_max_age(), 300 );
+check( 'reachability result cached briefly', SiteIconFallback\get_reachability_cache_lifetime(), 300 );
 
 echo "\nActivation is gated on nginx\n";
 // Core fires the activation hook before it writes active_plugins, so a wp_die() here is the
-// whole mechanism — the plugin is simply never recorded as active.
+// whole mechanism: the plugin is simply never recorded as active.
 
 /** Run on_activation() and report whether it refused. */
 function refused(): bool {
 	try {
-		SiteIconFallback\Lifecycle\on_activation();
+		Lifecycle\on_activation();
 	} catch ( Activation_Refused $e ) {
 		return true;
 	}
@@ -630,12 +661,12 @@ $GLOBALS['is_nginx']        = false;
 check( 'a server that says it is not nginx is refused', refused(), true );
 
 // WP-CLI sets four $_SERVER keys and SERVER_SOFTWARE is not one of them, while core's
-// wp_fix_server_vars() defaults it to '' — so $is_nginx is false for every scripted
+// wp_fix_server_vars() defaults it to '', so $is_nginx is false for every scripted
 // activation, exactly as if the server had answered Apache. Refusing here would mean no
 // deploy could ever install this plugin.
 unset( $_SERVER['SERVER_SOFTWARE'] );
 check( 'no server means nothing to contradict, so activation proceeds', refused(), false );
-check( 'and that is not the same as nginx being detected', SiteIconFallback\Server_Config\is_nginx(), false );
+check( 'and that is not the same as nginx being detected', Server_Config\is_nginx(), false );
 
 $_SERVER['SERVER_SOFTWARE'] = 'Apache/2.4.58';
 
@@ -653,17 +684,17 @@ unset( $_SERVER['SERVER_SOFTWARE'] );
 echo "\nServer identification\n";
 // Core collapses "said nothing" and "said Apache" into the same false, so the plugin has to
 // read the raw value to tell a CLI run from the wrong web server.
-check( 'nothing reported is an empty string', SiteIconFallback\Server_Config\get_server_software(), '' );
+check( 'nothing reported is an empty string', Server_Config\get_server_software(), '' );
 $_SERVER['SERVER_SOFTWARE'] = 'nginx/1.24.0';
-check( 'what the server says is what comes back', SiteIconFallback\Server_Config\get_server_software(), 'nginx/1.24.0' );
+check( 'what the server says is what comes back', Server_Config\get_server_software(), 'nginx/1.24.0' );
 unset( $_SERVER['SERVER_SOFTWARE'] );
 
 echo "\nWP-CLI\n";
 // Nothing here loads WP-CLI, so these assert the guard that keeps the plugin from calling
-// into a class that is not there — every WP_CLI call in cli.php sits behind it.
-check( 'not running under WP-CLI', SiteIconFallback\CLI\is_running(), false );
-check( 'registering commands outside WP-CLI is a no-op', SiteIconFallback\CLI\register_commands(), null );
-check( 'warning outside WP-CLI is a no-op', SiteIconFallback\CLI\warn( 'unheard' ), null );
+// into a class that is not there. Every WP_CLI call in cli.php sits behind it.
+check( 'not running under WP-CLI', CLI\is_running(), false );
+check( 'registering commands outside WP-CLI is a no-op', CLI\register_commands(), null );
+check( 'warning outside WP-CLI is a no-op', CLI\warn( 'unheard' ), null );
 
 // The other half, out of process: WP_CLI has to exist before inc/cli.php loads, which this
 // runner cannot arrange for itself while also asserting the absent case above.
@@ -682,8 +713,8 @@ check( 'both commands are registered', array_keys( $registered['commands'] ?? []
 check( 'status is wired to its callable', $registered['commands']['site-icon-fallback status']['callable'] ?? null, 'SiteIconFallback\\CLI\\status_command' );
 
 // format_items() is reached through `use WP_CLI;`, which resolves WP_CLI\Utils\ to the
-// global namespace. Written without that import it becomes SiteIconFallback\CLI\WP_CLI\...,
-// which does not exist — and nothing here would say so except this.
+// global namespace. Written without that import it becomes CLI\WP_CLI\...,
+// which does not exist. Nothing here would say so except this.
 check( 'the format helper resolves to the global namespace', $registered['format'] ?? null, 'json' );
 check( 'every check is reported', count( $registered['rows'] ?? [] ), 4 );
 check( 'the Site Icon is found', $registered['rows'][0]['status'] ?? null, 'ok' );

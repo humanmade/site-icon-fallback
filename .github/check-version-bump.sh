@@ -4,7 +4,7 @@
 #
 # tests/test-version.php asserts the four version locations agree; it cannot notice that
 # all four agree on the *old* number. Bumping nothing therefore passes every other check,
-# and the mistake surfaces only when a release is cut — on a merged branch, by hand.
+# and the mistake surfaces only when a release is cut (on a merged branch, by hand).
 # See CLAUDE.md: "Versioning".
 #
 # Usage: check-version-bump.sh [base-ref]        (default: main; CI passes origin/<base>)
@@ -28,18 +28,13 @@ read_version() {
 # the whole point: git archive prunes a directory before it looks inside, so `/tests` never
 # matches tests/foo.php on its own. See CLAUDE.md: "The release branch is stripped".
 ships() {
-	local path="$1" dir
+	local candidate="$1"
 
-	if [ "$( git check-attr export-ignore -- "${path}" | sed 's/.*: //' )" = 'set' ]; then
-		return 1
-	fi
-
-	dir="$( dirname "${path}" )"
-	while [ "${dir}" != '.' ] && [ "${dir}" != '/' ]; do
-		if [ "$( git check-attr export-ignore -- "${dir}" | sed 's/.*: //' )" = 'set' ]; then
+	while [ "${candidate}" != '.' ] && [ "${candidate}" != '/' ]; do
+		if [ "$( git check-attr export-ignore -- "${candidate}" | sed 's/.*: //' )" = 'set' ]; then
 			return 1
 		fi
-		dir="$( dirname "${dir}" )"
+		candidate="$( dirname "${candidate}" )"
 	done
 
 	return 0
@@ -62,7 +57,7 @@ version_gt() {
 }
 
 git rev-parse --verify --quiet "${BASE}" > /dev/null \
-	|| fail "base ref '${BASE}' not found — CI needs actions/checkout with fetch-depth: 0"
+	|| fail "base ref '${BASE}' not found. CI needs actions/checkout with fetch-depth: 0"
 
 base_version="$( git show "${BASE}:${PLUGIN_FILE}" | read_version )"
 head_version="$( read_version < "${PLUGIN_FILE}" )"
@@ -95,16 +90,18 @@ if [ ! -s "${shipping}" ]; then
 	exit 0
 fi
 
+shipping_count="$( wc -l < "${shipping}" | tr -d ' ' )"
+
 if [ "${ALLOW_UNVERSIONED:-0}" = '1' ]; then
 	printf 'ALLOW_UNVERSIONED=1: %d shipping change(s) accepted at %s.\n' \
-		"$( wc -l < "${shipping}" | tr -d ' ' )" "${head_version}"
+		"${shipping_count}" "${head_version}"
 	exit 0
 fi
 
 if [ "${head_version}" = "${base_version}" ]; then
 	printf 'error: these changes ship, but the version is still %s:\n' "${head_version}" >&2
 	sed 's/^/  /' "${shipping}" >&2
-	printf 'Bump all four locations — see CLAUDE.md: "Versioning".\n' >&2
+	printf 'Bump all four locations. See CLAUDE.md: "Versioning".\n' >&2
 	exit 1
 fi
 
@@ -112,4 +109,4 @@ version_gt "${head_version}" "${base_version}" \
 	|| fail "version went backwards: ${BASE} is ${base_version}, this branch is ${head_version}"
 
 printf 'Version raised %s -> %s for %d shipping change(s).\n' \
-	"${base_version}" "${head_version}" "$( wc -l < "${shipping}" | tr -d ' ' )"
+	"${base_version}" "${head_version}" "${shipping_count}"

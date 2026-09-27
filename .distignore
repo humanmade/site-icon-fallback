@@ -2,7 +2,7 @@
 # the format wp-cli/dist-archive-command reads.
 #
 # bin/ is deliberately NOT listed. install-nginx-config.sh is plugin functionality,
-# not build tooling — inc/server-config.php and inc/cli.php both point the user at it,
+# not build tooling. inc/server-config.php and inc/cli.php both point the user at it,
 # so an archive without it ships a plugin whose own instructions are broken.
 #
 # composer.json is deliberately NOT listed either. It carries `type: wordpress-plugin`,
@@ -22,7 +22,7 @@ package.json
 package-lock.json
 composer.lock
 
-# Dev dependencies. Neither is needed at runtime — the plugin has no autoloader,
+# Dev dependencies. Neither is needed at runtime: the plugin has no autoloader,
 # it requires inc/*.php directly, and composer.lock is ignored for an installed package.
 node_modules
 vendor

@@ -2,20 +2,18 @@
 #
 # Strip development files from the release branch commit.
 #
-# Runs as the build step of humanmade/hm-github-actions' build-to-release-branch action,
-# which places it between the reverse-applied merge — that leaves the index holding all of
-# main's tree — and the `git commit --amend` that publishes it. Dropping paths from the
-# index here keeps them out of the release commit without touching the working tree, and
-# the next run re-applies main in full before this script runs again, so it is idempotent.
+# Runs as the build step of humanmade/hm-github-actions' build-to-release-branch action, between
+# the reverse-applied merge (which leaves the index holding all of main's tree) and the
+# `git commit --amend` that publishes it. Dropping paths from the index keeps them out of the
+# release commit without touching the working tree, and the next run re-applies main in full
+# before this script runs again, so it is idempotent.
 
 set -euo pipefail
 
-# What to strip is decided by `git archive`, not by re-reading .gitattributes with
-# check-attr. An export-ignore on a directory pattern such as `/tests` matches the
-# directory entry alone, so check-attr reports nothing for the files inside it; only
-# archive's tree traversal prunes the directory. That traversal is also what GitHub runs
-# to build a tag's source archive, so deferring to it is what makes the release branch
-# hold exactly what `composer require` downloads.
+# What to strip is decided by `git archive`, never by re-reading .gitattributes with check-attr:
+# an export-ignore on a directory pattern such as `/tests` matches the directory entry alone, so
+# check-attr reports nothing for the files inside it and the whole suite would ship.
+# See CLAUDE.md: "The release branch is stripped, and `git archive` is what decides by how much".
 
 # The merge has staged main's tree but not committed it, so HEAD is still the previous
 # release commit. write-tree turns the index into a tree object archive can read.
@@ -33,7 +31,7 @@ git ls-files | LC_ALL=C sort > "${tracked}"
 comm -23 "${tracked}" "${keep}" > "${strip}"
 
 if [ ! -s "${strip}" ]; then
-	echo 'Nothing to strip: the tree already matches its archive.'
+	printf 'Nothing to strip: the tree already matches its archive.\n'
 	exit 0
 fi
 

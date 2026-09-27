@@ -1,8 +1,8 @@
 name: Tests
 
 # Deliberately unfiltered by path, unlike php.yml. The suites assert across file types that
-# do not look related — the version test reads readme.txt and site-icon-fallback.php, the
-# strip test reads .gitattributes — so any paths list narrow enough to be worth having is
+# do not look related (the version test reads readme.txt and site-icon-fallback.php, the
+# strip test reads .gitattributes), so any paths list narrow enough to be worth having is
 # also narrow enough to skip the change that breaks one of them. The whole run is seconds.
 on:
   pull_request:

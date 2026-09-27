@@ -6,7 +6,7 @@ WordPress declares the Site Icon in the page head, but a lot of clients never re
 
 ## What it does
 
-**Declares the sized icon tags.** Core emits one `apple-touch-icon` link with no `sizes` attribute. A client after a specific size has no exact match to pick. The plugin considers 120, 152, 167 and 180, then declares each size backed by a genuinely different image. This half works on any host with no configuration.
+**Declares the sized icon tags.** Core emits one `apple-touch-icon` link with no `sizes` attribute. A client after a specific size has no exact match to pick. The plugin considers 120, 152, 167 and 180, then declares each size backed by a different image. This half works on any host with no configuration.
 
 **Answers the root paths.** A request for `/apple-touch-icon*.png`, `/favicon.ico` or `/favicon.png` gets a 200 with the image bytes, an `ETag` and a day-long `Cache-Control`. I serve bytes rather than a redirect, because nothing guarantees an icon fetcher follows one. This half needs the request to reach PHP.
 
@@ -23,7 +23,7 @@ WordPress declares the Site Icon in the page head, but a lot of clients never re
 2. Put that directory in `wp-content/plugins/`.
 3. Activate the plugin in wp-admin, or run `wp plugin activate site-icon-fallback`.
 4. Set a Site Icon in **Settings → General**, if you have not already.
-5. Confirm both halves work, which the next section covers.
+5. Confirm both halves work, using the checks in the next section.
 
 The plugin writes no files and stores no options. Activating and deactivating it changes nothing on disk or in your database.
 
@@ -51,7 +51,7 @@ Some tuned nginx configurations answer static paths themselves. The rules in `ng
 ./bin/install-nginx-config.sh --remove        # take the block back out
 ```
 
-Reload nginx afterwards, which locally usually means restarting the container. The block sits between `# BEGIN Site Icon Fallback` and `# END Site Icon Fallback`. Re-running the script replaces that block rather than appending a second copy, because nginx rejects duplicate `location` directives.
+Reload nginx afterwards. On a local environment that usually means restarting the container. The block sits between `# BEGIN Site Icon Fallback` and `# END Site Icon Fallback`. Re-running the script replaces that block rather than appending a second copy, because nginx rejects duplicate `location` directives.
 
 Two things to know before you paste the rules in:
 
@@ -64,7 +64,7 @@ Hosts that pin `/favicon.ico` with `location = /favicon.ico` are handled. nginx 
 
 Activation stops with an error when the server reports itself as something other than nginx. WordPress reads that from `$_SERVER['SERVER_SOFTWARE']`, which is not always right: nginx proxying to Apache reports Apache. If you are on nginx and the check disagrees, return `false` from `site_icon_fallback_require_nginx` in an mu-plugin.
 
-Activating with WP-CLI always works. A CLI run has no web server to ask, so `SERVER_SOFTWARE` is never set, and the check warns instead of blocking. Your deploys will not get stuck on this.
+Activating with WP-CLI always works, so a deploy never gets stuck on this. A CLI run has no web server to ask, so `SERVER_SOFTWARE` is never set and the check warns instead of blocking.
 
 ## WP-CLI commands
 
@@ -81,7 +81,7 @@ One caveat before you wire `--strict` into CI. The reachability check is a loopb
 
 ## Sizes it answers
 
-`/apple-touch-icon-152x152.png` and the rest of the `-precomposed` variants resolve to the size in the filename. These sizes are answered:
+`/apple-touch-icon-152x152.png` and its `-precomposed` variants resolve to the size in the filename. These sizes are answered:
 
 57, 60, 72, 76, 114, 120, 144, 152, 167, 180, 192
 
@@ -98,8 +98,9 @@ Anything else is refused, so the endpoint cannot be driven as an image-resize se
 | `site_icon_fallback_redirect_max_age` | 5 minutes | How long a redirect may be cached |
 | `site_icon_fallback_missing_max_age` | 5 minutes | How long a 404 may be cached |
 | `site_icon_fallback_failure_cache_lifetime` | 5 minutes | How long a failed fetch is remembered server-side |
+| `site_icon_fallback_reachability_cache_lifetime` | 5 minutes | How long Site Health remembers whether root requests reach PHP |
 
-Keep the three short lifetimes well below the content one. Each points at something a Site Icon change invalidates, so caching them hard leaves clients replaying a stale answer.
+Keep the redirect, missing and failure lifetimes well below the content one. Each points at something a Site Icon change invalidates, so caching them hard leaves clients replaying a stale answer. The reachability lifetime is unrelated to the icon: it caches a three-second loopback request, and shortening it only makes Site Health notice a server configuration change sooner.
 
 ## Developing on it
 
@@ -118,7 +119,7 @@ The tests need no WordPress bootstrap, no database and no PHPUnit. `tests/test-r
 
 ## Uninstalling
 
-Deleting the plugin clears its cached icon bytes, which is all it stores. There are no options to clean up. nginx rules are never removed for you, so run `bin/install-nginx-config.sh --remove` yourself.
+Deleting the plugin clears its cached icon bytes, which is all it stores. nginx rules are never removed for you, so run `bin/install-nginx-config.sh --remove` yourself.
 
 ## Licence
 

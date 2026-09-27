@@ -3,7 +3,7 @@
  * The nginx configuration needed where the web server answers root paths itself.
  *
  * Generated only, never written: nginx has no per-directory config a plugin could write.
- * Apache needs nothing — core's .htaccess already sends non-existent paths to index.php.
+ * Apache needs nothing. Core's .htaccess already sends non-existent paths to index.php.
  *
  * @package SiteIconFallback
  */
@@ -18,7 +18,7 @@ defined( 'ABSPATH' ) || exit;
  * Whether the site is served by nginx.
  *
  * Core derives $is_nginx from SERVER_SOFTWARE, which is wrong where nginx proxies to
- * Apache. Activation depends on this, so the gate around it is filterable — see
+ * Apache. Activation depends on this, so the gate around it is filterable. See
  * Lifecycle\nginx_is_required().
  *
  * @return bool
