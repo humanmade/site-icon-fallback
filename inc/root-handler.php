@@ -86,11 +86,12 @@ function get_request_path(): string {
 /**
  * Resolve the icon size for a matched apple-touch-icon request.
  *
- * A filename carrying dimensions must be square and name a supported size, so that
- * apple-touch-icon-9999x9999.png cannot drive image generation.
+ * Only a square, supported size is served as itself. Any other dimensions get the default,
+ * so apple-touch-icon-9999x9999.png gets an icon without driving image generation.
+ * See CLAUDE.md: "Sizes are allow-listed."
  *
  * @param array<int, string> $matches Matches produced by TOUCH_ICON_PATTERN.
- * @return int Size in pixels, or 0 when the request should be refused.
+ * @return int Size in pixels, or 0 when the fallback is filtered off and the request gets a 404.
  */
 function resolve_touch_icon_size( array $matches ): int {
 	if ( ! isset( $matches[1] ) || ! isset( $matches[2] ) ) {
@@ -100,17 +101,24 @@ function resolve_touch_icon_size( array $matches ): int {
 	$width  = (int) $matches[1];
 	$height = (int) $matches[2];
 
-	if ( $width !== $height || ! in_array( $width, SiteIconFallback\SUPPORTED_SIZES, true ) ) {
-		return 0;
+	if ( $width === $height && in_array( $width, SiteIconFallback\SUPPORTED_SIZES, true ) ) {
+		return $width;
 	}
 
-	return $width;
+	/**
+	 * Filters whether an unsupported or non-square size gets the default icon instead of a 404.
+	 *
+	 * @param bool $enabled Whether to serve DEFAULT_TOUCH_ICON_SIZE.
+	 */
+	$fallback_enabled = (bool) apply_filters( 'site_icon_fallback_default_for_unsupported_sizes', true );
+
+	return $fallback_enabled ? SiteIconFallback\DEFAULT_TOUCH_ICON_SIZE : 0;
 }
 
 /**
  * Answer a request for the Site Icon at a given size, or send a 404.
  *
- * @param int $size Size in pixels. Zero refuses the request.
+ * @param int $size Size in pixels. Zero sends a 404.
  * @return void
  */
 function serve_icon( int $size ): void {

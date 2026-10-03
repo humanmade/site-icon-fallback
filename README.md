@@ -81,11 +81,11 @@ One caveat before you wire `--strict` into CI. The reachability check is a loopb
 
 ## Sizes it answers
 
-`/apple-touch-icon-152x152.png` and its `-precomposed` variants resolve to the size in the filename. These sizes are answered:
+`/apple-touch-icon-152x152.png` and its `-precomposed` variants resolve to the size in the filename, for these sizes:
 
 57, 60, 72, 76, 114, 120, 144, 152, 167, 180, 192
 
-Anything else is refused, so the endpoint cannot be driven as an image-resize service. A bare `/apple-touch-icon.png` serves 180, and so do `/favicon.ico` and `/favicon.png`.
+Any other size in the filename, including a non-square one, serves 180 instead of a 404. Return `false` from `site_icon_fallback_default_for_unsupported_sizes` to send the 404 instead. The list stays closed, so the endpoint cannot be driven as an image-resize service. A bare `/apple-touch-icon.png` serves 180, and so do `/favicon.ico` and `/favicon.png`.
 
 ## Filters
 
@@ -93,6 +93,7 @@ Anything else is refused, so the endpoint cannot be driven as an image-resize se
 | --- | --- | --- |
 | `site_icon_fallback_require_nginx` | `true` | `false` allows activation on any server |
 | `site_icon_fallback_serve_mode` | `stream` | `redirect` sends a 302 instead of the bytes |
+| `site_icon_fallback_default_for_unsupported_sizes` | `true` | `false` sends a 404 for an unsupported or non-square size instead of the 180 icon |
 | `site_icon_fallback_declared_sizes` | `[120, 152, 167, 180]` | Sizes considered for the page head |
 | `site_icon_fallback_content_max_age` | `DAY_IN_SECONDS` | How long clients may cache the icon |
 | `site_icon_fallback_redirect_max_age` | 5 minutes | How long a redirect may be cached |

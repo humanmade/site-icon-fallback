@@ -60,7 +60,7 @@ Bytes are content and can be cached hard: a Site Icon change also changes the UR
 
 #### Sizes are allow-listed
 
-`SUPPORTED_SIZES` is a closed set and non-square filenames are refused, so the endpoint cannot be driven as an arbitrary image-resize service.
+`SUPPORTED_SIZES` is a closed set, so the endpoint cannot be driven as an arbitrary image-resize service. Only those sizes are served as themselves. A filename naming any other dimensions, non-square ones included, is answered at `DEFAULT_TOUCH_ICON_SIZE` rather than refused. The closed set is what stops image generation, and serving a size that already exists generates nothing, so the 404 these requests used to get protected nothing. All it did was deny an icon to a client probing a size missing from the list. Each filename is its own URL, so caching the default under `-240x240` cannot shadow a real answer at another size. Returning `false` from `site_icon_fallback_default_for_unsupported_sizes` restores the 404, for a site that would rather a client walk on to its next candidate than accept a 180 under a larger name.
 
 #### Content types are allow-listed too
 
