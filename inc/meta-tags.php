@@ -20,7 +20,7 @@ defined( 'ABSPATH' ) || exit;
  * still answered at the root but not declared here, since a link tag costs bytes on every
  * page. Sizes resolving to the same image are collapsed. See get_declarable_icons().
  */
-const DECLARED_SIZES = [ 120, 152, 167, 180, 240 ];
+const DECLARED_SIZES = [ 120, 152, 167, 180 ];
 
 /**
  * Replace core's single bare apple-touch-icon tag with a sized set.
