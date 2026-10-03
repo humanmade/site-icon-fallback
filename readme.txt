@@ -4,7 +4,7 @@ Tags: favicon, site icon, apple-touch-icon, safari, ios
 Requires at least: 6.7
 Tested up to: 7.0
 Requires PHP: 8.2
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: GPL-2.0-or-later
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
 
@@ -104,9 +104,13 @@ The root paths return a 404. Core does something different for `/favicon.ico`: i
 
 = Which sizes are supported? =
 
-57, 60, 72, 76, 114, 120, 144, 152, 167, 180 and 192. Sizes outside that list are refused, so the endpoint cannot be used to generate arbitrary image derivatives. A bare `/apple-touch-icon.png` serves 180, and so do `/favicon.ico` and `/favicon.png`.
+57, 60, 72, 76, 114, 120, 144, 152, 167, 180 and 192. A request for any other size, including a non-square one, serves 180. Return false from the `site_icon_fallback_default_for_unsupported_sizes` filter to send a 404 instead. The list is closed, so the endpoint cannot be used to generate arbitrary image derivatives. A bare `/apple-touch-icon.png` serves 180, and so do `/favicon.ico` and `/favicon.png`.
 
 == Changelog ==
+
+= 0.3.0 =
+* Requests for an unsupported icon size, such as `/apple-touch-icon-240x240.png`, now serve the 180px icon instead of a 404. Clients that probe a size missing from the list get an icon, and the server logs fewer 404s. The size list itself is unchanged, so no new image sizes can be generated.
+* New `site_icon_fallback_default_for_unsupported_sizes` filter. Return false from it to keep sending a 404 for unsupported sizes.
 
 = 0.2.0 =
 * New `site_icon_fallback_reachability_cache_lifetime` filter. Site Health caches whether root icon requests reach PHP, and that result comes from a three-second loopback request. The lifetime was fixed at five minutes with no way to change it, so after fixing a server configuration you had to wait it out. Shorten it to see the change sooner, lengthen it to make the loopback rarer.
