@@ -15,15 +15,16 @@ use SiteIconFallback\Site_Health;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Sizes the root handler will answer for.
+ * Sizes the root handler serves as themselves.
  *
  * Every apple-touch-icon size Apple has shipped a device for, plus 192 for Android/Chrome.
- * A closed set, so the endpoint cannot be driven as an image-resize service.
+ * A closed set, so the endpoint cannot be driven as an image-resize service. Any other
+ * requested size gets DEFAULT_TOUCH_ICON_SIZE.
  */
 const SUPPORTED_SIZES = [ 57, 60, 72, 76, 114, 120, 144, 152, 167, 180, 192 ];
 
 /**
- * Size used for a bare /apple-touch-icon.png carrying no dimensions in its filename.
+ * Size used for an apple-touch-icon request whose filename names no supported size.
  *
  * 180 is what current iOS devices ask for, and what core declares in the page head.
  */
